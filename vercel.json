@@ -2,14 +2,8 @@
   "version": 2,
   "builds": [
     {
-      "src": "server/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "shared/**",
-          "dist/**"
-        ]
-      }
+      "src": "api/index.js",
+      "use": "@vercel/node"
     },
     {
       "src": "package.json",
@@ -22,7 +16,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/index.ts"
+      "dest": "/api/index.js"
     },
     {
       "src": "/(.*)",
@@ -30,11 +24,8 @@
     }
   ],
   "functions": {
-    "server/index.ts": {
+    "api/index.js": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "NODE_ENV": "production"
   }
 }

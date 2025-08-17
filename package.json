@@ -25,9 +25,9 @@
   "homepage": "https://github.com/robbeckersprive-sudo/resourcio#readme",
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:api",
     "build:client": "vite build",
-    "build:server": "esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outdir=dist --target=node18",
+    "build:api": "esbuild api/index.js --platform=node --packages=external --bundle --format=esm --outdir=.vercel/output/functions/api --target=node18",
     "vercel-build": "npm run build:client",
     "start": "node dist/index.js",
     "check": "tsc",
