@@ -111,3 +111,29 @@ migrations/
 
 # Supabase
 .supabase/
+
+# Additional modern development files
+.turbo/
+.vercel/
+.netlify/
+.firebase/
+
+# Package manager lock files (keep only one)
+# Uncomment the one you're NOT using:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Test results
+test-results/
+playwright-report/
+coverage/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Local development
+.local/
+.cache/

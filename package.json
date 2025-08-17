@@ -3,7 +3,26 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "ResourceFlow - Resource Planning and Time Tracking Application",
+  "description": "ResourceFlow - Comprehensive resource planning and management platform built with React, TypeScript, and Node.js",
+  "keywords": [
+    "resource-management",
+    "project-planning",
+    "time-tracking",
+    "capacity-planning",
+    "react",
+    "typescript",
+    "nodejs",
+    "supabase"
+  ],
+  "author": "ResourceFlow Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robbeckersprive-sudo/resourcio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/robbeckersprive-sudo/resourcio/issues"
+  },
+  "homepage": "https://github.com/robbeckersprive-sudo/resourcio#readme",
   "scripts": {
     "dev": "tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
