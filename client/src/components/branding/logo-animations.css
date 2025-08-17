@@ -1,0 +1,193 @@
+/* 
+ * Sophisticated SaaS-style Logo Animations
+ * Professional, subtle, and performance-optimized
+ */
+
+/* Gentle float animation - DISABLED for professional appearance */
+@keyframes gentle-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(0px);
+  }
+}
+
+/* Aura pulse animation - DISABLED at rest, only active on hover */
+@keyframes aura-pulse {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+}
+
+/* Sheen sweep animation for hover effect */
+@keyframes sheen-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+    opacity: 0;
+  }
+}
+
+/* Enhanced gradient animation for text */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Logo container base styles */
+.logo-container {
+  position: relative;
+  will-change: auto;
+}
+
+/* Float effect - DISABLED for professional appearance */
+.logo-float {
+  /* No animation at rest - professional and stable */
+}
+
+/* Icon container with enhanced effects */
+.logo-icon-container {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow;
+}
+
+/* Aura effect - static at rest, enhanced on hover */
+.logo-aura::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    rgba(135, 206, 235, 0.15) 0%,
+    rgba(99, 102, 241, 0.15) 50%,
+    rgba(139, 92, 246, 0.15) 100%);
+  filter: blur(6px);
+  z-index: -1;
+  opacity: 0.2;
+  transition: all 0.3s ease;
+}
+
+/* Enhanced aura on hover */
+.logo-container:hover .logo-aura::before {
+  opacity: 0.5;
+  filter: blur(10px);
+  transform: scale(1.05);
+}
+
+/* Sheen effect overlay */
+.logo-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 60%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Trigger sheen sweep on hover */
+.logo-container:hover .logo-sheen::after {
+  animation: sheen-sweep 0.8s ease-out;
+}
+
+/* Enhanced hover effects for icon container */
+.logo-container:hover .logo-icon-container {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 
+    0 10px 25px -5px rgba(99, 102, 241, 0.3),
+    0 8px 10px -6px rgba(99, 102, 241, 0.2);
+}
+
+/* Enhanced gradient text - static at rest */
+.logo-text-enhanced {
+  background: linear-gradient(
+    90deg,
+    #87CEEB 0%,
+    #6366F1 25%,
+    #8B5CF6 50%,
+    #6366F1 75%,
+    #87CEEB 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-position: 0% 50%;
+  transition: background-position 0.6s ease;
+}
+
+/* Enhanced text hover effect */
+.logo-container:hover .logo-text-enhanced {
+  background-position: 100% 50%;
+}
+
+/* Sidebar variant adjustments */
+.logo-sidebar .logo-aura::before {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    rgba(255, 255, 255, 0.15) 50%, 
+    rgba(255, 255, 255, 0.1) 100%);
+}
+
+.logo-sidebar:hover .logo-aura::before {
+  opacity: 0.4;
+}
+
+/* Accessibility: Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .logo-aura::before,
+  .logo-text-enhanced,
+  .logo-icon-container {
+    transition: none;
+  }
+
+  .logo-container:hover .logo-sheen::after {
+    animation: none;
+    transform: translateX(-100%) skewX(-15deg);
+  }
+
+  .logo-container:hover .logo-icon-container {
+    transform: none;
+  }
+
+  .logo-container:hover .logo-text-enhanced {
+    background-position: 0% 50%;
+  }
+}
+
+/* Performance optimizations */
+.logo-container,
+.logo-icon-container,
+.logo-aura::before,
+.logo-sheen::after {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

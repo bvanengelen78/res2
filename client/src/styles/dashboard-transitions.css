@@ -1,0 +1,903 @@
+/* Enhanced Dashboard Transition Animations */
+
+/* =============================================================================
+   PROFESSIONAL DASHBOARD ANIMATIONS SYSTEM
+   ============================================================================= */
+
+/* Performance Optimization Base Classes */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.animation-ready {
+  transform: translateZ(0);
+  will-change: auto;
+}
+
+/* =============================================================================
+   PERFORMANCE-OPTIMIZED DASHBOARD ANIMATIONS WITH DYNAMIC TIMING
+   ============================================================================= */
+
+/* CSS Custom Properties for dynamic animation timing */
+:root {
+  --animation-duration: 300ms;
+  --stagger-delay: 80ms;
+}
+
+/* Performance tier-specific overrides */
+.perf-high-end {
+  --animation-duration: 300ms;
+  --stagger-delay: 80ms;
+}
+
+.perf-mid-range {
+  --animation-duration: 250ms;
+  --stagger-delay: 60ms;
+}
+
+.perf-low-end {
+  --animation-duration: 200ms;
+  --stagger-delay: 0ms;
+}
+
+.perf-reduced-motion {
+  --animation-duration: 0ms;
+  --stagger-delay: 0ms;
+}
+
+/* =============================================================================
+   INITIAL LOAD ANIMATIONS - STAGGERED ENTRANCE
+   ============================================================================= */
+
+/* Fade-in + Slide-up animation for dashboard sections */
+@keyframes dashboard-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Dynamic staggered entrance animations using CSS custom properties */
+.dashboard-entrance {
+  animation: dashboard-entrance var(--animation-duration) ease-out forwards;
+  opacity: 0;
+  transform: translateY(8px) scale(0.99); /* Reduced transform for better performance */
+}
+
+/* Dynamic stagger timing using CSS custom properties */
+.dashboard-entrance-header {
+  animation-delay: 0ms;
+}
+
+.dashboard-entrance-kpis {
+  animation-delay: var(--stagger-delay);
+}
+
+.dashboard-entrance-alerts {
+  animation-delay: calc(var(--stagger-delay) * 3);
+}
+
+.dashboard-entrance-gamified {
+  animation-delay: calc(var(--stagger-delay) * 2);
+}
+
+.dashboard-entrance-analytics {
+  animation-delay: calc(var(--stagger-delay) * 4);
+}
+
+.dashboard-entrance-actions {
+  animation-delay: calc(var(--stagger-delay) * 4);
+}
+
+/* Performance-optimized variants for different device tiers */
+@media (max-width: 1023px) {
+  /* Mid-range and mobile devices: faster stagger */
+  .dashboard-entrance {
+    animation-duration: 250ms;
+  }
+
+  .dashboard-entrance-kpis {
+    animation-delay: 60ms;
+  }
+
+  .dashboard-entrance-alerts {
+    animation-delay: 120ms;
+  }
+
+  .dashboard-entrance-analytics {
+    animation-delay: 180ms;
+  }
+
+  .dashboard-entrance-actions {
+    animation-delay: 240ms;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Low-end/mobile devices: minimal stagger */
+  .dashboard-entrance {
+    animation-duration: 200ms;
+  }
+
+  .dashboard-entrance-kpis,
+  .dashboard-entrance-alerts,
+  .dashboard-entrance-analytics,
+  .dashboard-entrance-actions {
+    animation-delay: 0ms; /* No stagger on mobile */
+  }
+}
+
+/* =============================================================================
+   PERIOD TRANSITION ANIMATIONS
+   ============================================================================= */
+
+/* Enhanced period transition with scale + opacity */
+@keyframes period-transition-refresh {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.period-transition-active {
+  animation: period-transition-refresh 400ms ease-out;
+}
+
+/* Period filter active state with ring effect */
+@keyframes period-filter-active {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.period-filter-active {
+  animation: period-filter-active 600ms ease-out;
+}
+
+/* =============================================================================
+   ENHANCED SHIMMER ANIMATIONS
+   ============================================================================= */
+
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* =============================================================================
+   COMPONENT-SPECIFIC ANIMATIONS
+   ============================================================================= */
+
+/* Enhanced pulse animation for period transitions */
+@keyframes enhanced-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.99);
+  }
+}
+
+.animate-enhanced-pulse {
+  animation: enhanced-pulse 800ms ease-in-out infinite;
+}
+
+/* Dynamic KPI Card entrance animation */
+@keyframes kpi-card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98); /* Reduced transform for performance */
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.kpi-card-entrance {
+  animation: kpi-card-entrance var(--animation-duration) ease-out forwards;
+}
+
+/* Gamified tile entrance animation */
+@keyframes gamified-tile-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.gamified-tile-entrance {
+  animation: gamified-tile-entrance var(--animation-duration) ease-out forwards;
+}
+
+/* Dynamic Alert card entrance animation */
+@keyframes alert-card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateX(-6px); /* Reduced transform distance */
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.alert-card-entrance {
+  animation: alert-card-entrance var(--animation-duration) ease-out forwards;
+}
+
+/* Dynamic Analytics section entrance */
+@keyframes analytics-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99); /* Reduced transform for performance */
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.analytics-entrance {
+  animation: analytics-entrance var(--animation-duration) ease-out forwards;
+}
+
+/* Performance optimizations for mobile devices */
+@media (max-width: 767px) {
+  .kpi-card-entrance,
+  .alert-card-entrance,
+  .gamified-tile-entrance {
+    animation-duration: 200ms;
+  }
+
+  .analytics-entrance {
+    animation-duration: 250ms;
+  }
+
+  /* Simplify transforms on mobile */
+  @keyframes kpi-card-entrance {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes gamified-tile-entrance {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes alert-card-entrance {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes analytics-entrance {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+}
+
+/* Smooth fade transitions */
+@keyframes smooth-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-smooth-fade-in {
+  animation: smooth-fade-in 0.3s ease-out;
+}
+
+/* Period transition indicator */
+@keyframes period-transition {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-period-transition {
+  animation: period-transition 1s ease-in-out;
+}
+
+/* Loading dots animation */
+@keyframes loading-dots {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-loading-dots {
+  animation: loading-dots 1.4s infinite ease-in-out;
+}
+
+/* Staggered loading animation */
+.animate-loading-dots:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.animate-loading-dots:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.animate-loading-dots:nth-child(3) {
+  animation-delay: 0s;
+}
+
+/* Smooth scale transition for components */
+@keyframes smooth-scale {
+  from {
+    transform: scale(0.98);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-smooth-scale {
+  animation: smooth-scale 0.4s ease-out;
+}
+
+/* Enhanced skeleton gradients */
+.skeleton-blue {
+  background: linear-gradient(90deg, 
+    rgba(59, 130, 246, 0.1) 0%, 
+    rgba(59, 130, 246, 0.2) 50%, 
+    rgba(59, 130, 246, 0.1) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-gray {
+  background: linear-gradient(90deg, 
+    rgba(156, 163, 175, 0.2) 0%, 
+    rgba(156, 163, 175, 0.3) 50%, 
+    rgba(156, 163, 175, 0.2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Transition overlay */
+.transition-overlay {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(59, 130, 246, 0.1) 50%, 
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Performance optimizations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* =============================================================================
+   ACCESSIBILITY & PERFORMANCE OPTIMIZATIONS
+   ============================================================================= */
+
+/* Comprehensive reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations */
+  .animate-shimmer,
+  .animate-enhanced-pulse,
+  .animate-smooth-fade-in,
+  .animate-period-transition,
+  .animate-loading-dots,
+  .animate-smooth-scale,
+  .dashboard-entrance,
+  .period-transition-active,
+  .period-filter-active,
+  .kpi-card-entrance,
+  .gamified-tile-entrance,
+  .alert-card-entrance,
+  .analytics-entrance,
+  .projects-entrance,
+  .project-card-entrance,
+  .project-header-entrance,
+  .filters-entrance,
+  .resources-entrance,
+  .resource-card-entrance,
+  .resource-header-entrance {
+    animation: none !important;
+  }
+
+  /* Disable transitions */
+  .transition-all,
+  .period-transition-active,
+  .gpu-accelerated {
+    transition: none !important;
+  }
+
+  /* Ensure immediate visibility */
+  .dashboard-entrance,
+  .kpi-card-entrance,
+  .gamified-tile-entrance,
+  .alert-card-entrance,
+  .analytics-entrance,
+  .projects-entrance,
+  .project-card-entrance,
+  .project-header-entrance,
+  .filters-entrance,
+  .resources-entrance,
+  .resource-card-entrance,
+  .resource-header-entrance {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Performance optimizations for animations */
+.dashboard-entrance,
+.period-transition-active,
+.kpi-card-entrance,
+.gamified-tile-entrance,
+.alert-card-entrance,
+.analytics-entrance,
+.projects-entrance,
+.project-card-entrance,
+.project-header-entrance,
+.filters-entrance,
+.resources-entrance,
+.resource-card-entrance,
+.resource-header-entrance {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Reset will-change after animations complete */
+.animation-complete {
+  will-change: auto;
+}
+
+/* =============================================================================
+   UTILITY CLASSES FOR STAGGERED ANIMATIONS
+   ============================================================================= */
+
+/* Stagger delay utilities */
+.stagger-delay-0 { animation-delay: 0ms; }
+.stagger-delay-1 { animation-delay: 100ms; }
+.stagger-delay-2 { animation-delay: 200ms; }
+.stagger-delay-3 { animation-delay: 300ms; }
+.stagger-delay-4 { animation-delay: 400ms; }
+.stagger-delay-5 { animation-delay: 500ms; }
+
+/* Micro-stagger for individual items */
+.micro-stagger-1 { animation-delay: 50ms; }
+.micro-stagger-2 { animation-delay: 100ms; }
+.micro-stagger-3 { animation-delay: 150ms; }
+.micro-stagger-4 { animation-delay: 200ms; }
+
+/* =============================================================================
+   ENHANCED LOADING STATES
+   ============================================================================= */
+
+/* Skeleton loading with improved shimmer */
+.skeleton-enhanced {
+  background: linear-gradient(90deg,
+    rgba(59, 130, 246, 0.08) 0%,
+    rgba(59, 130, 246, 0.15) 50%,
+    rgba(59, 130, 246, 0.08) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Loading state transitions */
+@keyframes loading-to-content {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.loading-to-content {
+  animation: loading-to-content 300ms ease-out forwards;
+}
+
+/* =============================================================================
+   PROJECTS PAGE ANIMATIONS
+   ============================================================================= */
+
+/* Projects entrance animation */
+@keyframes projects-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.projects-entrance {
+  animation: projects-entrance var(--animation-duration) ease-out forwards;
+  opacity: 0;
+  transform: translateY(8px) scale(0.99);
+}
+
+/* Projects header entrance */
+.projects-entrance-header {
+  animation-delay: 0ms;
+}
+
+/* Projects filters entrance */
+.filters-entrance {
+  animation: projects-entrance var(--animation-duration) ease-out forwards;
+  animation-delay: calc(var(--stagger-delay) * 1);
+}
+
+/* Project header entrance */
+.project-header-entrance {
+  animation: projects-entrance var(--animation-duration) ease-out forwards;
+  animation-delay: calc(var(--stagger-delay) * 2);
+}
+
+/* Project card entrance animation */
+@keyframes project-card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.project-card-entrance {
+  animation: project-card-entrance var(--animation-duration) ease-out forwards;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
+
+/* =============================================================================
+   RESOURCES PAGE ANIMATIONS
+   ============================================================================= */
+
+/* Resources entrance animation */
+@keyframes resources-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.resources-entrance {
+  animation: resources-entrance var(--animation-duration) ease-out forwards;
+  opacity: 0;
+  transform: translateY(8px) scale(0.99);
+}
+
+/* Resources header entrance */
+.resource-header-entrance {
+  animation: resources-entrance var(--animation-duration) ease-out forwards;
+  animation-delay: 0ms;
+}
+
+/* Resource card entrance animation */
+@keyframes resource-card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.resource-card-entrance {
+  animation: resource-card-entrance var(--animation-duration) ease-out forwards;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
+
+/* =============================================================================
+   ROLE HEATMAP STACKED CARD ANIMATIONS
+   ============================================================================= */
+
+/* Stacked card hover effect */
+@keyframes stack-card-hover {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  100% {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* Enhanced stack expansion animation */
+@keyframes stack-expand {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+    max-height: 0;
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-2px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 500px;
+  }
+}
+
+/* Enhanced stack collapse animation */
+@keyframes stack-collapse {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 500px;
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-2px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+    max-height: 0;
+  }
+}
+
+/* Group to individual transition */
+@keyframes group-to-individual {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Individual to group transition */
+@keyframes individual-to-group {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Resource navigation dots animation */
+@keyframes dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.role-stack-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.role-stack-card:hover {
+  animation: stack-card-hover 0.3s ease-out forwards;
+}
+
+.stack-expand-enter {
+  animation: stack-expand 0.3s ease-out forwards;
+}
+
+.stack-collapse-exit {
+  animation: stack-collapse 0.25s ease-in forwards;
+}
+
+.group-to-individual-transition {
+  animation: group-to-individual 0.25s ease-out forwards;
+}
+
+.individual-to-group-transition {
+  animation: individual-to-group 0.25s ease-out forwards;
+}
+
+/* Enhanced role card transitions */
+.role-card-content {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.role-card-expanding {
+  animation: stack-expand 0.3s ease-out forwards;
+}
+
+.role-card-collapsing {
+  animation: stack-collapse 0.25s ease-in forwards;
+}
+
+.resource-nav-dot {
+  transition: all 0.2s ease-out;
+}
+
+.resource-nav-dot:hover {
+  animation: dot-pulse 0.6s ease-in-out infinite;
+}
+
+/* Enhanced group view badge animation */
+@keyframes group-badge-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+}
+
+.group-view-badge {
+  animation: group-badge-glow 2s ease-in-out infinite;
+}
+
+/* Enhanced stacked card depth effect */
+.stack-depth-1 {
+  transform: translateX(3px) translateY(3px);
+  opacity: 0.7;
+  z-index: 1;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.stack-depth-2 {
+  transform: translateX(6px) translateY(6px);
+  opacity: 0.4;
+  z-index: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* Resource metrics animation */
+@keyframes metrics-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.metrics-slide-in {
+  animation: metrics-slide-in 0.3s ease-out forwards;
+}
+
+/* Navigation button hover effects */
+@keyframes nav-button-hover {
+  0% {
+    transform: scale(1);
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  100% {
+    transform: scale(1.1);
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+}
+
+.nav-button-hover:hover {
+  animation: nav-button-hover 0.2s ease-out forwards;
+}
+
+/* Progress bar animation for individual resources */
+@keyframes progress-fill {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: var(--progress-width);
+  }
+}
+
+.progress-bar-animated {
+  animation: progress-fill 0.8s ease-out forwards;
+}
+
+/* Accessibility: Reduced motion support for stacked cards */
+@media (prefers-reduced-motion: reduce) {
+  .role-stack-card,
+  .stack-expand-enter,
+  .stack-collapse-exit,
+  .resource-nav-dot,
+  .group-view-badge,
+  .metrics-slide-in,
+  .nav-button-hover,
+  .progress-bar-animated,
+  .group-to-individual-transition,
+  .individual-to-group-transition,
+  .role-card-content,
+  .role-card-expanding,
+  .role-card-collapsing {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .role-stack-card:hover {
+    transform: none !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+  }
+}

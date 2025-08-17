@@ -1,0 +1,304 @@
+/* Clean Professional Theme for Dashboard Component */
+/* Scoped to .dashboard-clean-theme class to avoid affecting other components */
+
+.dashboard-clean-theme {
+  /* Provided shadcn theme CSS variables with purple/violet primary */
+  --radius: 0.65rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.623 0.214 259.815);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.623 0.214 259.815);
+
+  /* Status colors for dashboard */
+  --success: oklch(0.55 0.15 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.7 0.15 85);
+  --warning-foreground: oklch(0.1 0 0);
+  --info: oklch(0.623 0.214 259.815);
+  --info-foreground: oklch(0.985 0 0);
+
+  /* Clean widget styling */
+  --widget-background: oklch(1 0 0);
+  --widget-background-hover: oklch(0.99 0 0);
+  --widget-border: oklch(0.92 0.004 286.32);
+  --widget-shadow: oklch(0.1 0 0 / 0.05);
+}
+
+.dashboard-clean-theme.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.2 260);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+
+  /* Dark theme widget backgrounds */
+  --widget-background: oklch(0.21 0.006 285.885);
+  --widget-background-hover: oklch(0.25 0.006 285.885);
+  --widget-border: oklch(0.3 0.006 285.885);
+  --widget-shadow: oklch(0 0 0 / 0.3);
+}
+
+/* Dashboard specific component styles - Clean Theme */
+.dashboard-clean-theme .dashboard-card {
+  background: var(--widget-background);
+  border: 1px solid var(--widget-border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px var(--widget-shadow);
+  transition: all 0.2s ease;
+}
+
+.dashboard-clean-theme .dashboard-card:hover {
+  background: var(--widget-background-hover);
+  box-shadow: 0 2px 6px var(--widget-shadow);
+}
+
+.dashboard-clean-theme .kpi-card {
+  background: var(--widget-background);
+  border: 1px solid var(--widget-border);
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.dashboard-clean-theme .kpi-card:hover {
+  box-shadow: 0 2px 6px var(--widget-shadow);
+}
+
+.dashboard-clean-theme .kpi-card .kpi-value {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.dashboard-clean-theme .kpi-card .kpi-label {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.dashboard-clean-theme .kpi-card .kpi-icon {
+  color: var(--primary);
+}
+
+/* Smart widget styles - Clean design */
+.dashboard-clean-theme .smart-widget {
+  background: var(--widget-background);
+  border: 1px solid var(--widget-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.dashboard-clean-theme .smart-widget-header {
+  background: var(--background);
+  color: var(--foreground);
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--widget-border);
+}
+
+.dashboard-clean-theme .smart-widget-content {
+  padding: 1.5rem;
+}
+
+/* Skeleton loading styles for clean theme */
+.dashboard-clean-theme .skeleton {
+  background: linear-gradient(90deg,
+    var(--muted) 25%,
+    var(--muted-foreground) 50%,
+    var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  opacity: 0.6;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive grid for dashboard widgets */
+.dashboard-clean-theme .dashboard-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+/* Mobile breakpoints */
+@media (min-width: 480px) {
+  .dashboard-clean-theme .dashboard-grid {
+    gap: 1.25rem;
+  }
+}
+
+/* Tablet breakpoints */
+@media (min-width: 768px) {
+  .dashboard-clean-theme .dashboard-grid {
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+/* Desktop breakpoints */
+@media (min-width: 1024px) {
+  .dashboard-clean-theme .dashboard-grid {
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
+}
+
+/* Large desktop breakpoints */
+@media (min-width: 1280px) {
+  .dashboard-clean-theme .dashboard-grid {
+    gap: 2.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  }
+}
+
+/* Mobile-specific dashboard adjustments */
+@media (max-width: 767px) {
+  .dashboard-clean-theme .dashboard-header {
+    padding: 1rem 1.5rem;
+  }
+
+  .dashboard-clean-theme .smart-widget-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .dashboard-clean-theme .smart-widget-content {
+    padding: 1rem;
+  }
+
+  .dashboard-clean-theme .kpi-card {
+    min-height: 120px;
+  }
+
+  /* Stack filter controls vertically on mobile */
+  .dashboard-clean-theme .filter-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Adjust button sizes for mobile */
+  .dashboard-clean-theme .mobile-button {
+    height: 3rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Tablet-specific adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .dashboard-clean-theme .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-clean-theme .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Status indicators with clean theme colors */
+.dashboard-clean-theme .status-good {
+  background: var(--success);
+  color: var(--success-foreground);
+  border: 1px solid var(--success);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dashboard-clean-theme .status-warning {
+  background: var(--warning);
+  color: var(--warning-foreground);
+  border: 1px solid var(--warning);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dashboard-clean-theme .status-critical {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  border: 1px solid var(--destructive);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dashboard-clean-theme .status-info {
+  background: var(--info);
+  color: var(--info-foreground);
+  border: 1px solid var(--info);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Expandable widget animations */
+.dashboard-clean-theme .widget-expandable {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-clean-theme .widget-expanded {
+  transform: scale(1.01);
+  z-index: 10;
+  box-shadow: 0 4px 12px var(--widget-shadow);
+}
+
+/* Header styling for clean dashboard */
+.dashboard-clean-theme .dashboard-header {
+  background: var(--background);
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--widget-shadow);
+}
+
+.dashboard-clean-theme .dashboard-header h1 {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dashboard-clean-theme .dashboard-header .greeting {
+  color: var(--muted-foreground);
+}
+
+/* Charts and data visualization */
+.dashboard-clean-theme .chart-container {
+  background: var(--widget-background);
+}
+
+.dashboard-clean-theme .chart-primary {
+  color: var(--primary);
+}
+
+.dashboard-clean-theme .chart-secondary {
+  color: var(--muted-foreground);
+}

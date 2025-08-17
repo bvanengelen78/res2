@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#87CEEB"/>
+      <stop offset="50%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background with brand gradient -->
+  <rect width="512" height="512" rx="96" fill="url(#brandGradient)"/>
+  
+  <!-- Letter "R" in white -->
+  <text x="256" y="340" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="280" font-weight="bold">R</text>
+</svg>
