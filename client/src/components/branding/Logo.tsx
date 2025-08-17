@@ -148,16 +148,15 @@ export const Logo: React.FC<LogoProps> = ({
 
   // Default: Link to home page
   return (
-    <Link href={brand.homeHref}>
-      <a
-        className={cn(
-          'group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-lg',
-          'transition-all duration-300 hover:opacity-95'
-        )}
-        aria-label={`${brand.name} - Go to homepage`}
-      >
-        {logoContent}
-      </a>
+    <Link
+      href={brand.homeHref}
+      className={cn(
+        'group focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-lg',
+        'transition-all duration-300 hover:opacity-95'
+      )}
+      aria-label={`${brand.name} - Go to homepage`}
+    >
+      {logoContent}
     </Link>
   );
 };
