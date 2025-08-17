@@ -101,3 +101,4 @@ If deployment issues persist:
 2. Review Supabase project status
 3. Validate all environment variables
 4. Test API endpoints individually
+5. Verify Git author permissions match Vercel project access
