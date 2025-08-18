@@ -38,13 +38,12 @@ export function ForgotPasswordForm({ onLogin, onRegister }: ForgotPasswordFormPr
     try {
       setError(null);
       setIsLoading(true);
-      
-      await apiRequest('/api/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      
-      setSuccess(true);
+
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Show message that self-service password reset is not available
+      setError("Self-service password reset is not available. Contact your administrator to reset your password.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send reset email");
     } finally {
