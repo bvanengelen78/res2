@@ -187,41 +187,89 @@ async function handleGetHeatmap(req, res) {
 // Handle gamified metrics
 async function handleGetGamifiedMetrics(req, res) {
   try {
+    // Return the correct GamifiedMetrics interface structure that the frontend expects
     const gamifiedMetrics = {
-      teamPerformance: {
-        score: 87,
-        trend: 5.2,
-        level: "Excellent",
-        achievements: ["High Efficiency", "On-Time Delivery"]
+      capacityHero: {
+        conflictsCount: 0,
+        badgeLevel: 'gold',
+        streak: 14,
+        achievements: ['Conflict-Free Week', 'Optimal Planning']
       },
-      resourceUtilization: {
+      forecastAccuracy: {
+        percentage: 87.5,
+        trend: 5.2,
+        lastWeekAccuracy: 82.3,
+        improvementTip: 'Consider buffer time for complex tasks'
+      },
+      resourceHealth: {
         score: 92,
         trend: 2.1,
-        level: "Outstanding",
-        achievements: ["Optimal Allocation", "Balanced Workload"]
+        burnoutRisk: 'low',
+        wellnessIndicators: {
+          workloadBalance: 'good',
+          overtimeFrequency: 'minimal',
+          satisfactionScore: 4.2
+        }
       },
-      projectDelivery: {
-        score: 78,
-        trend: -1.3,
-        level: "Good",
-        achievements: ["Quality Focus"]
+      projectLeaderboard: [
+        {
+          id: 1,
+          name: 'Alpha Project',
+          score: 95,
+          status: 'on-track',
+          completionRate: 78,
+          teamEfficiency: 92
+        },
+        {
+          id: 2,
+          name: 'Beta Initiative',
+          score: 88,
+          status: 'ahead',
+          completionRate: 65,
+          teamEfficiency: 85
+        },
+        {
+          id: 3,
+          name: 'Gamma Release',
+          score: 82,
+          status: 'on-track',
+          completionRate: 45,
+          teamEfficiency: 78
+        },
+        {
+          id: 4,
+          name: 'Delta Optimization',
+          score: 76,
+          status: 'at-risk',
+          completionRate: 32,
+          teamEfficiency: 71
+        },
+        {
+          id: 5,
+          name: 'Epsilon Migration',
+          score: 71,
+          status: 'delayed',
+          completionRate: 28,
+          teamEfficiency: 68
+        }
+      ],
+      firefighterAlerts: {
+        resolved: 8,
+        pending: 2,
+        avgResolutionTime: '2.3 hours',
+        topResolver: 'John Doe',
+        recentWins: [
+          'Resolved capacity conflict in Engineering',
+          'Optimized resource allocation for Q1 projects'
+        ]
       },
-      capacityManagement: {
-        score: 85,
-        trend: 3.7,
-        level: "Very Good",
-        achievements: ["Proactive Planning", "Risk Mitigation"]
-      },
-      overallScore: 85.5,
-      overallTrend: 2.4,
-      overallLevel: "Very Good",
-      totalAchievements: 6,
-      weeklyProgress: [
-        { week: "W1", score: 82 },
-        { week: "W2", score: 84 },
-        { week: "W3", score: 86 },
-        { week: "W4", score: 85.5 }
-      ]
+      crystalBall: {
+        daysUntilConflict: 14,
+        conflictType: 'capacity',
+        affectedResources: 2,
+        suggestedAction: 'Consider redistributing tasks from Alpha Project',
+        confidence: 85
+      }
     };
 
     res.json(gamifiedMetrics);
