@@ -28,19 +28,41 @@ function verifyToken(req) {
 // Dashboard handlers
 async function handleGetKPIs(req, res) {
   try {
-    // Mock KPI data for testing
+    // Mock KPI data with proper trend data structure that frontend expects
     const kpis = {
       activeProjects: 12,
       totalProjects: 18,
       availableResources: 8,
       totalResources: 10,
-      utilizationRate: 85.5,
+      utilization: 85.5, // Changed from utilizationRate to match frontend
+      conflicts: 2, // Added conflicts that frontend expects
       budgetUtilization: 72.3,
-      trends: {
-        projectsTrend: 5.2,
-        resourcesTrend: 2.1,
-        utilizationTrend: -1.3,
-        budgetTrend: 8.7
+      // Proper trendData structure with arrays for sparklines
+      trendData: {
+        activeProjects: {
+          current_value: 12,
+          previous_value: 10,
+          period_label: 'from last week',
+          trend_data: [8, 9, 10, 11, 12, 13, 12] // Array for sparkline
+        },
+        availableResources: {
+          current_value: 8,
+          previous_value: 7,
+          period_label: 'from last week',
+          trend_data: [6, 7, 7, 8, 8, 9, 8] // Array for sparkline
+        },
+        utilization: {
+          current_value: 85.5,
+          previous_value: 82.2,
+          period_label: 'from last week',
+          trend_data: [78.5, 80.1, 82.2, 83.5, 85.1, 86.2, 85.5] // Array for sparkline
+        },
+        conflicts: {
+          current_value: 2,
+          previous_value: 3,
+          period_label: 'from last week',
+          trend_data: [4, 3, 3, 2, 2, 1, 2] // Array for sparkline
+        }
       }
     };
 
@@ -53,42 +75,69 @@ async function handleGetKPIs(req, res) {
 
 async function handleGetAlerts(req, res) {
   try {
-    // Mock alerts data for testing
+    // Mock alerts data matching EnhancedCapacityAlerts interface
     const alerts = {
-      alerts: [
+      categories: [
         {
-          id: 'overallocation-1',
-          type: 'overallocation',
-          severity: 'critical',
-          resourceId: 1,
-          resourceName: 'John Doe',
-          message: 'John Doe is overallocated at 125.0%',
-          utilization: 125.0,
-          capacity: 40,
-          allocated: 50,
-          createdAt: new Date().toISOString()
+          type: 'critical',
+          title: 'Critical Capacity Issues',
+          count: 1,
+          alerts: [
+            {
+              id: 'critical-1',
+              resourceId: 1,
+              resourceName: 'John Doe',
+              department: 'Engineering',
+              currentUtilization: 125.0,
+              threshold: 100.0,
+              weeklyCapacity: 40,
+              allocatedHours: 50,
+              conflictDetails: {
+                overallocationHours: 10,
+                conflictingProjects: ['Alpha Project', 'Beta Initiative'],
+                suggestedActions: ['Redistribute 10h from Alpha Project', 'Consider hiring additional developer']
+              },
+              severity: 'critical',
+              createdAt: new Date().toISOString()
+            }
+          ]
         },
         {
-          id: 'nearoverallocation-2',
-          type: 'near_overallocation',
-          severity: 'medium',
-          resourceId: 2,
-          resourceName: 'Jane Smith',
-          message: 'Jane Smith is near capacity at 95.0%',
-          utilization: 95.0,
-          capacity: 40,
-          allocated: 38,
-          createdAt: new Date().toISOString()
+          type: 'warning',
+          title: 'Capacity Warnings',
+          count: 1,
+          alerts: [
+            {
+              id: 'warning-1',
+              resourceId: 2,
+              resourceName: 'Jane Smith',
+              department: 'Engineering',
+              currentUtilization: 95.0,
+              threshold: 90.0,
+              weeklyCapacity: 40,
+              allocatedHours: 38,
+              conflictDetails: {
+                overallocationHours: 0,
+                conflictingProjects: ['Gamma Release'],
+                suggestedActions: ['Monitor closely', 'Prepare backup resources']
+              },
+              severity: 'warning',
+              createdAt: new Date().toISOString()
+            }
+          ]
         }
       ],
       summary: {
         totalAlerts: 2,
-        critical: 1,
-        high: 0,
-        medium: 1,
-        low: 0
+        criticalCount: 1,
+        warningCount: 1,
+        infoCount: 0
       },
-      lastUpdated: new Date().toISOString()
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        periodStart: new Date().toISOString(),
+        periodEnd: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      }
     };
 
     res.json(alerts);
@@ -192,76 +241,52 @@ async function handleGetGamifiedMetrics(req, res) {
       capacityHero: {
         conflictsCount: 0,
         badgeLevel: 'gold',
-        streak: 14,
-        achievements: ['Conflict-Free Week', 'Optimal Planning']
+        periodLabel: 'This Month' // Added missing periodLabel
       },
       forecastAccuracy: {
         percentage: 87.5,
-        trend: 5.2,
-        lastWeekAccuracy: 82.3,
-        improvementTip: 'Consider buffer time for complex tasks'
+        trend: [82, 84, 86, 87.5, 89, 87.5], // Changed to array for chart
+        color: 'green' // Added missing color property
       },
       resourceHealth: {
         score: 92,
-        trend: 2.1,
-        burnoutRisk: 'low',
-        wellnessIndicators: {
-          workloadBalance: 'good',
-          overtimeFrequency: 'minimal',
-          satisfactionScore: 4.2
-        }
+        status: 'good' // Added missing status property
       },
       projectLeaderboard: [
         {
-          id: 1,
           name: 'Alpha Project',
-          score: 95,
-          status: 'on-track',
-          completionRate: 78,
-          teamEfficiency: 92
+          variance: 2.3,
+          isAtRisk: false
         },
         {
-          id: 2,
           name: 'Beta Initiative',
-          score: 88,
-          status: 'ahead',
-          completionRate: 65,
-          teamEfficiency: 85
+          variance: 5.7,
+          isAtRisk: false
         },
         {
-          id: 3,
           name: 'Gamma Release',
-          score: 82,
-          status: 'on-track',
-          completionRate: 45,
-          teamEfficiency: 78
+          variance: 12.1,
+          isAtRisk: true
         },
         {
-          id: 4,
           name: 'Delta Optimization',
-          score: 76,
-          status: 'at-risk',
-          completionRate: 32,
-          teamEfficiency: 71
+          variance: 8.9,
+          isAtRisk: false
         },
         {
-          id: 5,
           name: 'Epsilon Migration',
-          score: 71,
-          status: 'delayed',
-          completionRate: 28,
-          teamEfficiency: 68
+          variance: 15.2,
+          isAtRisk: true
         }
       ],
       firefighterAlerts: {
         resolved: 8,
-        pending: 2,
-        avgResolutionTime: '2.3 hours',
-        topResolver: 'John Doe',
-        recentWins: [
-          'Resolved capacity conflict in Engineering',
-          'Optimized resource allocation for Q1 projects'
-        ]
+        delta: 3,
+        trend: 'up'
+      },
+      continuousImprovement: {
+        delta: 5.2,
+        trend: 'up'
       },
       crystalBall: {
         daysUntilConflict: 14,
