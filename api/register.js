@@ -47,6 +47,11 @@ module.exports = async function handler(req, res) {
         id: 2,
         email: email,
         resourceId: resourceId || 2,
+        roles: [{ role: 'regular_user' }], // Default to regular user for new registrations
+        permissions: [
+          'time_logging',
+          'dashboard'
+        ],
         resource: {
           id: resourceId || 2,
           name: 'New User',

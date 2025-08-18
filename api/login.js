@@ -49,6 +49,21 @@ module.exports = async function handler(req, res) {
           id: 1,
           email: email,
           resourceId: 1,
+          roles: [{ role: 'admin' }], // Default to admin role for testing
+          permissions: [
+            'time_logging',
+            'reports',
+            'change_lead_reports',
+            'resource_management',
+            'project_management',
+            'user_management',
+            'system_admin',
+            'dashboard',
+            'calendar',
+            'submission_overview',
+            'settings',
+            'role_management'
+          ],
           resource: {
             id: 1,
             name: 'Test User',
