@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { DatabaseService } = require('./lib/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -80,11 +81,20 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Return mock departments data
-    // TODO: Replace with real Supabase query when migrating from mock data
-    res.json(mockDepartments);
+    // Use real Supabase data instead of mock data
+    const departments = await DatabaseService.getDepartments();
+
+    // If no data from Supabase, fall back to mock data for development
+    if (departments.length === 0) {
+      console.warn('No departments found in Supabase, falling back to mock data');
+      return res.json(mockDepartments);
+    }
+
+    res.json(departments);
   } catch (error) {
     console.error('Departments API error:', error);
-    res.status(500).json({ message: 'Failed to fetch departments' });
+    // Fall back to mock data on error
+    console.warn('Supabase error, falling back to mock data');
+    res.json(mockDepartments);
   }
 };

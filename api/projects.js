@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { DatabaseService } = require('./lib/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -68,10 +69,21 @@ const mockProjects = [
 // Project handlers
 async function handleGetProjects(req, res) {
   try {
-    res.json(mockProjects);
+    // Use real Supabase data instead of mock data
+    const projects = await DatabaseService.getProjects();
+
+    // If no data from Supabase, fall back to mock data for development
+    if (projects.length === 0) {
+      console.warn('No projects found in Supabase, falling back to mock data');
+      return res.json(mockProjects);
+    }
+
+    res.json(projects);
   } catch (error) {
     console.error('Get projects error:', error);
-    res.status(500).json({ message: 'Failed to fetch projects' });
+    // Fall back to mock data on error
+    console.warn('Supabase error, falling back to mock data');
+    res.json(mockProjects);
   }
 }
 

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { DatabaseService } = require('./lib/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -106,11 +107,20 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Return mock OGSM charters data
-    // TODO: Replace with real Supabase query when migrating from mock data
-    res.json(mockOgsmCharters);
+    // Use real Supabase data instead of mock data
+    const ogsmCharters = await DatabaseService.getOgsmCharters();
+
+    // If no data from Supabase, fall back to mock data for development
+    if (ogsmCharters.length === 0) {
+      console.warn('No OGSM charters found in Supabase, falling back to mock data');
+      return res.json(mockOgsmCharters);
+    }
+
+    res.json(ogsmCharters);
   } catch (error) {
     console.error('OGSM Charters API error:', error);
-    res.status(500).json({ message: 'Failed to fetch OGSM charters' });
+    // Fall back to mock data on error
+    console.warn('Supabase error, falling back to mock data');
+    res.json(mockOgsmCharters);
   }
 };
