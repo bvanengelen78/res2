@@ -4,12 +4,12 @@ import { storage } from "./storage";
 import { authService } from "./auth";
 import { supabaseAdmin } from "./supabase";
 import { authenticate, authorize, authorizeRole, authorizeResourceOwner, adminOnly, managerOrAdmin } from "./middleware/auth";
-import { 
+import {
   insertUserSchema,
-  insertResourceSchema, 
-  insertProjectSchema, 
-  insertResourceAllocationSchema, 
-  insertTimeOffSchema, 
+  insertResourceSchema,
+  insertProjectSchema,
+  insertResourceAllocationSchema,
+  insertTimeOffSchema,
   insertTimeEntrySchema,
   insertOgsmCharterSchema,
   insertDepartmentSchema,
@@ -19,6 +19,7 @@ import {
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { format, startOfWeek } from 'date-fns';
+import jwt from 'jsonwebtoken';
 import { generateSecurePassword, createPasswordResetAudit } from "./utils/password-generator";
 
 // STANDARDIZED: Single ISO week number calculation function used throughout alerts system
@@ -138,6 +139,798 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resource: req.user!.resource,
       }
     });
+  });
+
+  // ============================================================================
+  // VERCEL COMPATIBILITY ROUTES (must be before existing routes)
+  // ============================================================================
+  // These routes match the Vercel serverless function structure for development
+
+  // Ping endpoint for health checks
+  app.get("/api/ping", (req, res) => {
+    res.json({
+      message: "pong",
+      timestamp: new Date().toISOString(),
+      environment: "development"
+    });
+  });
+
+  // Login endpoint (mock authentication for development)
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { email, password, rememberMe } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      // For development - accept any email/password combination (same as Vercel functions)
+      if (email && password) {
+        const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+        const accessToken = jwt.sign(
+          { user: { id: 1, email: email, resourceId: 1 } },
+          JWT_SECRET,
+          { expiresIn: rememberMe ? '30d' : '1d' }
+        );
+
+        const refreshToken = jwt.sign(
+          { userId: 1 },
+          JWT_SECRET,
+          { expiresIn: '30d' }
+        );
+
+        return res.json({
+          user: {
+            id: 1,
+            email: email,
+            resourceId: 1,
+            roles: [{ role: 'admin' }], // Default to admin role for testing
+            permissions: [
+              'time_logging',
+              'reports',
+              'change_lead_reports',
+              'resource_management',
+              'project_management',
+              'user_management',
+              'system_admin',
+              'dashboard',
+              'calendar',
+              'submission_overview',
+              'settings',
+              'role_management'
+            ],
+            resource: {
+              id: 1,
+              name: 'Test User',
+              role: 'Developer'
+            }
+          },
+          tokens: {
+            accessToken,
+            refreshToken,
+          },
+        });
+      } else {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed";
+      res.status(401).json({ message });
+    }
+  });
+
+  // User profile endpoint (mock authentication for development)
+  app.get("/api/me", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+
+        res.json({
+          user: {
+            id: decoded.user.id,
+            email: decoded.user.email,
+            resourceId: decoded.user.resourceId,
+            roles: [{ role: 'admin' }], // Default to admin role for testing
+            permissions: [
+              'time_logging',
+              'reports',
+              'change_lead_reports',
+              'resource_management',
+              'project_management',
+              'user_management',
+              'system_admin',
+              'dashboard',
+              'calendar',
+              'submission_overview',
+              'settings',
+              'role_management'
+            ],
+            resource: {
+              id: decoded.user.resourceId,
+              name: 'Test User',
+              role: 'Developer'
+            }
+          }
+        });
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Authentication failed' });
+    }
+  });
+
+  // Logout endpoint (mock for development)
+  app.post("/api/logout", async (req, res) => {
+    try {
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Logout failed" });
+    }
+  });
+
+  // Refresh token endpoint (mock for development)
+  app.post("/api/refresh", async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Refresh token is required" });
+      }
+
+      // For development - generate new tokens
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        const decoded = jwt.verify(refreshToken, JWT_SECRET) as any;
+
+        const newAccessToken = jwt.sign(
+          { user: { id: decoded.userId, email: 'test@example.com', resourceId: decoded.userId } },
+          JWT_SECRET,
+          { expiresIn: '1d' }
+        );
+
+        const newRefreshToken = jwt.sign(
+          { userId: decoded.userId },
+          JWT_SECRET,
+          { expiresIn: '30d' }
+        );
+
+        res.json({
+          tokens: {
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+          }
+        });
+      } catch (error) {
+        return res.status(401).json({ message: "Invalid refresh token" });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Token refresh failed";
+      res.status(401).json({ message });
+    }
+  });
+
+  // Resources endpoint (mock for development)
+  app.get("/api/resources", async (req, res) => {
+    try {
+      // Manual authentication check
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        jwt.verify(token, JWT_SECRET);
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+
+      // Return mock resources data (same as Vercel function)
+      const mockResources = [
+        {
+          id: 1,
+          name: 'John Doe',
+          email: 'john.doe@company.com',
+          role: 'Frontend Developer',
+          jobRole: 'Senior Developer',
+          department: 'Engineering',
+          weeklyCapacity: 40,
+          status: 'active',
+          skills: ['React', 'TypeScript', 'CSS'],
+          allocations: []
+        },
+        {
+          id: 2,
+          name: 'Jane Smith',
+          email: 'jane.smith@company.com',
+          role: 'Backend Developer',
+          jobRole: 'Senior Developer',
+          department: 'Engineering',
+          weeklyCapacity: 40,
+          status: 'active',
+          skills: ['Node.js', 'PostgreSQL', 'API Design'],
+          allocations: []
+        },
+        {
+          id: 3,
+          name: 'Mike Johnson',
+          email: 'mike.johnson@company.com',
+          role: 'UI/UX Designer',
+          jobRole: 'Designer',
+          department: 'Design',
+          weeklyCapacity: 40,
+          status: 'active',
+          skills: ['Figma', 'User Research', 'Prototyping'],
+          allocations: []
+        }
+      ];
+
+      res.json(mockResources);
+    } catch (error) {
+      console.error('Resources API error:', error);
+      res.status(500).json({ message: 'Failed to fetch resources' });
+    }
+  });
+
+  // Projects endpoint (mock for development)
+  app.get("/api/projects", async (req, res) => {
+    try {
+      // Manual authentication check
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        jwt.verify(token, JWT_SECRET);
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+
+      // Return mock projects data (same as Vercel function)
+      const mockProjects = [
+        {
+          id: 1,
+          name: 'Project Alpha',
+          description: 'Frontend redesign project',
+          status: 'active',
+          startDate: '2024-01-01',
+          endDate: '2024-06-30',
+          budget: 50000,
+          priority: 'high',
+          department: 'Engineering',
+          allocations: []
+        },
+        {
+          id: 2,
+          name: 'Project Beta',
+          description: 'API modernization initiative',
+          status: 'active',
+          startDate: '2024-02-15',
+          endDate: '2024-08-15',
+          budget: 75000,
+          priority: 'medium',
+          department: 'Engineering',
+          allocations: []
+        },
+        {
+          id: 3,
+          name: 'Project Gamma',
+          description: 'User experience research',
+          status: 'planning',
+          startDate: '2024-03-01',
+          endDate: '2024-05-31',
+          budget: 25000,
+          priority: 'low',
+          department: 'Design',
+          allocations: []
+        }
+      ];
+
+      res.json(mockProjects);
+    } catch (error) {
+      console.error('Projects API error:', error);
+      res.status(500).json({ message: 'Failed to fetch projects' });
+    }
+  });
+
+  // OGSM Charters endpoint (mock for development)
+  app.get("/api/ogsm-charters", async (req, res) => {
+    try {
+      // Manual authentication check
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        jwt.verify(token, JWT_SECRET);
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+
+      // Return mock OGSM charters data
+      const mockCharters = [
+        {
+          id: 1,
+          title: 'Q1 2024 Engineering Charter',
+          objective: 'Improve development velocity and code quality',
+          goals: [
+            'Reduce deployment time by 50%',
+            'Achieve 90% test coverage',
+            'Implement automated CI/CD pipeline'
+          ],
+          strategies: [
+            'Adopt containerization',
+            'Implement automated testing',
+            'Establish code review process'
+          ],
+          measures: [
+            'Deployment frequency',
+            'Lead time for changes',
+            'Mean time to recovery'
+          ],
+          status: 'active',
+          department: 'Engineering',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-15T00:00:00Z'
+        },
+        {
+          id: 2,
+          title: 'Q1 2024 Design Charter',
+          objective: 'Enhance user experience and design consistency',
+          goals: [
+            'Create comprehensive design system',
+            'Improve user satisfaction scores',
+            'Reduce design iteration cycles'
+          ],
+          strategies: [
+            'Establish design tokens',
+            'Conduct user research',
+            'Implement design reviews'
+          ],
+          measures: [
+            'User satisfaction score',
+            'Design system adoption',
+            'Time to design approval'
+          ],
+          status: 'active',
+          department: 'Design',
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-10T00:00:00Z'
+        }
+      ];
+
+      res.json(mockCharters);
+    } catch (error) {
+      console.error('OGSM Charters API error:', error);
+      res.status(500).json({ message: 'Failed to fetch OGSM charters' });
+    }
+  });
+
+  // Departments endpoint (mock for development)
+  app.get("/api/departments", async (req, res) => {
+    try {
+      // Manual authentication check
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      try {
+        jwt.verify(token, JWT_SECRET);
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+
+      // Return mock departments data
+      const mockDepartments = [
+        {
+          id: 1,
+          name: 'Engineering',
+          description: 'Software development and technical operations',
+          headOfDepartment: 'John Smith',
+          budget: 500000,
+          resourceCount: 12,
+          status: 'active',
+          createdAt: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: 2,
+          name: 'Design',
+          description: 'User experience and visual design',
+          headOfDepartment: 'Jane Doe',
+          budget: 200000,
+          resourceCount: 5,
+          status: 'active',
+          createdAt: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: 3,
+          name: 'Product',
+          description: 'Product strategy and management',
+          headOfDepartment: 'Mike Johnson',
+          budget: 300000,
+          resourceCount: 8,
+          status: 'active',
+          createdAt: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: 4,
+          name: 'Marketing',
+          description: 'Marketing and customer acquisition',
+          headOfDepartment: 'Sarah Wilson',
+          budget: 250000,
+          resourceCount: 6,
+          status: 'active',
+          createdAt: '2024-01-01T00:00:00Z'
+        }
+      ];
+
+      res.json(mockDepartments);
+    } catch (error) {
+      console.error('Departments API error:', error);
+      res.status(500).json({ message: 'Failed to fetch departments' });
+    }
+  });
+
+  // Consolidated dashboard endpoint (matches Vercel structure)
+  app.get("/api/dashboard", async (req, res) => {
+    try {
+      // Manual authentication check
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+      let user;
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        user = {
+          id: decoded.user.id,
+          email: decoded.user.email,
+          resourceId: decoded.user.resourceId
+        };
+      } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+
+      const { endpoint, startDate, endDate, includeTrends, department } = req.query;
+
+      // Route to appropriate handler based on endpoint parameter
+      switch (endpoint) {
+        case 'kpis':
+          // Handle KPIs request
+          try {
+            const resources = await storage.getResources();
+            const projects = await storage.getProjects();
+            const allocations = await storage.getResourceAllocations();
+
+            // Apply department filter to resources if specified
+            const filteredResources = department && department !== 'all'
+              ? resources.filter(r => {
+                  const resourceDepartment = r.department || r.role || 'General';
+                  return resourceDepartment === department;
+                })
+              : resources;
+
+            // Calculate KPIs
+            const activeProjects = projects.filter(p => p.status === 'active').length;
+            const totalProjects = projects.length;
+            const availableResources = filteredResources.filter(r => r.isActive).length;
+            const totalResources = filteredResources.length;
+
+            // Calculate utilization rate
+            const totalCapacity = filteredResources.reduce((sum, r) => sum + (r.weeklyCapacity || 40), 0);
+            const totalAllocated = allocations
+              .filter(a => filteredResources.some(r => r.id === a.resourceId))
+              .reduce((sum, a) => sum + a.hoursPerWeek, 0);
+            const utilizationRate = totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0;
+
+            const kpis = {
+              activeProjects,
+              totalProjects,
+              availableResources,
+              totalResources,
+              utilizationRate: Math.round(utilizationRate * 10) / 10,
+              budgetUtilization: 72.3, // Mock value
+              trends: {
+                projectsTrend: 5.2,
+                resourcesTrend: 2.1,
+                utilizationTrend: -1.3,
+                budgetTrend: 8.7
+              }
+            };
+
+            return res.json(kpis);
+          } catch (error) {
+            console.error('Dashboard KPIs error:', error);
+            return res.status(500).json({ message: 'Failed to fetch dashboard KPIs' });
+          }
+
+        case 'alerts':
+          // Handle alerts request - return EnhancedCapacityAlerts structure
+          try {
+            const alerts = {
+              categories: [
+                {
+                  type: 'critical',
+                  count: 1,
+                  resources: [
+                    {
+                      id: 1,
+                      name: 'John Doe',
+                      utilization: 125.0,
+                      allocatedHours: 50,
+                      capacity: 40,
+                      department: 'Engineering',
+                      role: 'Frontend Developer',
+                      peakWeek: {
+                        weekNumber: 33,
+                        utilization: 125.0,
+                        allocatedHours: 50
+                      },
+                      contributingProjects: [
+                        {
+                          id: 1,
+                          name: 'Project Alpha',
+                          allocatedHours: 30
+                        },
+                        {
+                          id: 2,
+                          name: 'Project Beta',
+                          allocatedHours: 20
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  type: 'warning',
+                  count: 1,
+                  resources: [
+                    {
+                      id: 2,
+                      name: 'Jane Smith',
+                      utilization: 95.0,
+                      allocatedHours: 38,
+                      capacity: 40,
+                      department: 'Engineering',
+                      role: 'Backend Developer',
+                      peakWeek: {
+                        weekNumber: 33,
+                        utilization: 95.0,
+                        allocatedHours: 38
+                      },
+                      contributingProjects: [
+                        {
+                          id: 2,
+                          name: 'Project Beta',
+                          allocatedHours: 25
+                        },
+                        {
+                          id: 3,
+                          name: 'Project Gamma',
+                          allocatedHours: 13
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              summary: {
+                totalAlerts: 2,
+                criticalCount: 1,
+                warningCount: 1,
+                infoCount: 0,
+                unassignedCount: 0
+              },
+              metadata: {
+                department: department as string || 'all',
+                startDate: startDate as string || new Date().toISOString().split('T')[0],
+                endDate: endDate as string || new Date().toISOString().split('T')[0],
+                generatedAt: new Date().toISOString()
+              }
+            };
+
+            return res.json(alerts);
+          } catch (error) {
+            console.error('Dashboard alerts error:', error);
+            return res.status(500).json({ message: 'Failed to fetch dashboard alerts' });
+          }
+
+        case 'timeline':
+          // Handle timeline request
+          try {
+            const timeline = [
+              {
+                id: 1,
+                name: 'Project Alpha',
+                startDate: '2024-01-01',
+                endDate: '2024-06-30',
+                status: 'active',
+                allocatedHours: 120,
+                allocations: [
+                  {
+                    id: 1,
+                    resourceId: 1,
+                    resourceName: 'John Doe',
+                    hoursPerWeek: 20
+                  }
+                ]
+              },
+              {
+                id: 2,
+                name: 'Project Beta',
+                startDate: '2024-02-15',
+                endDate: '2024-08-15',
+                status: 'active',
+                allocatedHours: 80,
+                allocations: [
+                  {
+                    id: 2,
+                    resourceId: 2,
+                    resourceName: 'Jane Smith',
+                    hoursPerWeek: 15
+                  }
+                ]
+              }
+            ];
+
+            return res.json(timeline);
+          } catch (error) {
+            console.error('Dashboard timeline error:', error);
+            return res.status(500).json({ message: 'Failed to fetch dashboard timeline' });
+          }
+
+        case 'heatmap':
+          // Handle heatmap request
+          try {
+            const heatmap = [
+              {
+                role: 'Frontend Developer',
+                resources: [
+                  {
+                    id: 1,
+                    name: 'John Doe',
+                    allocated: 30,
+                    utilization: 75.0
+                  }
+                ],
+                totalCapacity: 40,
+                totalAllocated: 30,
+                utilization: 75.0
+              },
+              {
+                role: 'Backend Developer',
+                resources: [
+                  {
+                    id: 2,
+                    name: 'Jane Smith',
+                    allocated: 38,
+                    utilization: 95.0
+                  }
+                ],
+                totalCapacity: 40,
+                totalAllocated: 38,
+                utilization: 95.0
+              }
+            ];
+
+            return res.json(heatmap);
+          } catch (error) {
+            console.error('Dashboard heatmap error:', error);
+            return res.status(500).json({ message: 'Failed to fetch dashboard heatmap' });
+          }
+
+        case 'gamified-metrics':
+          // Handle gamified metrics request - return GamifiedMetrics structure
+          try {
+            const gamifiedMetrics = {
+              capacityHero: {
+                conflictsCount: 0,
+                badgeLevel: 'gold' as const,
+                periodLabel: 'This Month'
+              },
+              forecastAccuracy: {
+                percentage: 87.5,
+                trend: [82, 84, 86, 87.5, 89, 87.5],
+                color: 'green' as const
+              },
+              resourceHealth: {
+                score: 92,
+                status: 'good' as const
+              },
+              projectLeaderboard: [
+                {
+                  name: 'Project Alpha',
+                  variance: 2.3,
+                  isAtRisk: false
+                },
+                {
+                  name: 'Project Beta',
+                  variance: 5.7,
+                  isAtRisk: false
+                },
+                {
+                  name: 'Project Gamma',
+                  variance: 12.1,
+                  isAtRisk: true
+                },
+                {
+                  name: 'Project Delta',
+                  variance: 8.9,
+                  isAtRisk: false
+                },
+                {
+                  name: 'Project Echo',
+                  variance: 15.2,
+                  isAtRisk: true
+                }
+              ],
+              firefighterAlerts: {
+                resolved: 8,
+                delta: 3,
+                trend: 'up' as const
+              },
+              continuousImprovement: {
+                delta: 5.2,
+                trend: 'up' as const
+              },
+              crystalBall: {
+                daysUntilConflict: 14,
+                confidence: 78
+              }
+            };
+
+            return res.json(gamifiedMetrics);
+          } catch (error) {
+            console.error('Dashboard gamified metrics error:', error);
+            return res.status(500).json({ message: 'Failed to fetch gamified metrics' });
+          }
+
+        default:
+          return res.json({
+            message: 'Dashboard API',
+            endpoints: [
+              '/api/dashboard?endpoint=kpis',
+              '/api/dashboard?endpoint=alerts',
+              '/api/dashboard?endpoint=timeline',
+              '/api/dashboard?endpoint=heatmap',
+              '/api/dashboard?endpoint=gamified-metrics'
+            ],
+            user: user
+          });
+      }
+    } catch (error) {
+      console.error('Dashboard API error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
   });
 
   // User management routes (Admin only)
@@ -4325,6 +5118,8 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       res.status(500).json({ message: "Failed to fetch gamified metrics" });
     }
   });
+
+
 
   const httpServer = createServer(app);
   return httpServer;
