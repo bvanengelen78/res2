@@ -131,11 +131,11 @@ export const cacheInvalidation = {
   invalidateDashboard: async () => {
     await Promise.all([
       // Main dashboard queries
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/alerts"] }),
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/kpis"] }),
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/kpis", "includeTrends=true"] }), // Include specific KPI query key
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/heatmap"] }),
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/timeline"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard", "alerts"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard", "kpis"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard", "kpis", "includeTrends=true"] }), // Include specific KPI query key
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard", "heatmap"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard", "timeline"] }),
 
       // Time Logging Overview queries
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-submissions/pending"] }),
@@ -188,13 +188,13 @@ export const cacheInvalidation = {
 
     const queryFilters = [
       // Main dashboard queries with filters
-      { queryKey: ["/api/dashboard/alerts", departmentFilter, startDate, endDate] },
-      { queryKey: ["/api/dashboard/alerts"] }, // FIXED: Include unfiltered alerts query for Role & Skill Heatmap
-      { queryKey: ["/api/dashboard/kpis", departmentFilter, startDate, endDate] },
-      { queryKey: ["/api/dashboard/kpis", "includeTrends=true"] }, // Include specific KPI query key
-      { queryKey: ["/api/dashboard/heatmap", departmentFilter, startDate, endDate] },
-      { queryKey: ["/api/dashboard/timeline", departmentFilter, startDate, endDate] },
-      { queryKey: ["/api/dashboard/timeline"] }, // FIXED: Include unfiltered timeline query
+      { queryKey: ["/api/dashboard", "alerts", departmentFilter, startDate, endDate] },
+      { queryKey: ["/api/dashboard", "alerts"] }, // FIXED: Include unfiltered alerts query for Role & Skill Heatmap
+      { queryKey: ["/api/dashboard", "kpis", departmentFilter, startDate, endDate] },
+      { queryKey: ["/api/dashboard", "kpis", "includeTrends=true"] }, // Include specific KPI query key
+      { queryKey: ["/api/dashboard", "heatmap", departmentFilter, startDate, endDate] },
+      { queryKey: ["/api/dashboard", "timeline", departmentFilter, startDate, endDate] },
+      { queryKey: ["/api/dashboard", "timeline"] }, // FIXED: Include unfiltered timeline query
 
       // Time Logging Overview queries
       { queryKey: ["/api/weekly-submissions/pending"] },

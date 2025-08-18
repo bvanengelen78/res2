@@ -273,14 +273,15 @@ export default function Dashboard() {
 
 
   const { data: kpis, isLoading: kpisLoading } = useQuery({
-    queryKey: ["/api/dashboard/kpis", "includeTrends=true", currentPeriod.startDate, currentPeriod.endDate], // Include period in query key
+    queryKey: ["/api/dashboard", "kpis", "includeTrends=true", currentPeriod.startDate, currentPeriod.endDate], // Include period in query key
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('endpoint', 'kpis');
       params.append('includeTrends', 'true'); // Request trend data
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/kpis?${params}`);
+      const response = await fetch(`/api/dashboard?${params}`);
       if (!response.ok) throw new Error('Failed to fetch KPIs');
       return response.json();
     },
@@ -289,13 +290,14 @@ export default function Dashboard() {
   });
 
   const { data: alerts, isLoading: alertsLoading, refetch: refetchAlerts } = useQuery({
-    queryKey: ["/api/dashboard/alerts", currentPeriod.startDate, currentPeriod.endDate],
+    queryKey: ["/api/dashboard", "alerts", currentPeriod.startDate, currentPeriod.endDate],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('endpoint', 'alerts');
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/alerts?${params}`);
+      const response = await fetch(`/api/dashboard?${params}`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       return response.json();
     },
@@ -317,13 +319,14 @@ export default function Dashboard() {
 
 
   const { data: timelineData, isLoading: timelineLoading } = useQuery({
-    queryKey: ["/api/dashboard/timeline", currentPeriod.startDate, currentPeriod.endDate],
+    queryKey: ["/api/dashboard", "timeline", currentPeriod.startDate, currentPeriod.endDate],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('endpoint', 'timeline');
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/timeline?${params}`);
+      const response = await fetch(`/api/dashboard?${params}`);
       if (!response.ok) throw new Error('Failed to fetch timeline data');
       return response.json();
     },

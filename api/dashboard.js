@@ -184,9 +184,57 @@ async function handleGetHeatmap(req, res) {
   }
 }
 
+// Handle gamified metrics
+async function handleGetGamifiedMetrics(req, res) {
+  try {
+    const gamifiedMetrics = {
+      teamPerformance: {
+        score: 87,
+        trend: 5.2,
+        level: "Excellent",
+        achievements: ["High Efficiency", "On-Time Delivery"]
+      },
+      resourceUtilization: {
+        score: 92,
+        trend: 2.1,
+        level: "Outstanding",
+        achievements: ["Optimal Allocation", "Balanced Workload"]
+      },
+      projectDelivery: {
+        score: 78,
+        trend: -1.3,
+        level: "Good",
+        achievements: ["Quality Focus"]
+      },
+      capacityManagement: {
+        score: 85,
+        trend: 3.7,
+        level: "Very Good",
+        achievements: ["Proactive Planning", "Risk Mitigation"]
+      },
+      overallScore: 85.5,
+      overallTrend: 2.4,
+      overallLevel: "Very Good",
+      totalAchievements: 6,
+      weeklyProgress: [
+        { week: "W1", score: 82 },
+        { week: "W2", score: 84 },
+        { week: "W3", score: 86 },
+        { week: "W4", score: 85.5 }
+      ]
+    };
+
+    res.json(gamifiedMetrics);
+  } catch (error) {
+    console.error('Dashboard gamified metrics error:', error);
+    res.status(500).json({ message: 'Failed to fetch gamified metrics' });
+  }
+}
+
+// Main dashboard handler that routes to sub-endpoints
 module.exports = async function handler(req, res) {
   setCorsHeaders(res);
-  
+
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -198,33 +246,39 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ message: 'Authentication required' });
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
-  const path = pathname.replace('/api/dashboard', '');
-  
   try {
     if (req.method !== 'GET') {
       return res.status(405).json({ message: 'Method not allowed' });
     }
-    
-    switch (path) {
-      case '/kpis':
+
+    // Parse the URL to determine the endpoint
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const endpoint = url.searchParams.get('endpoint');
+
+    // Route to appropriate handler based on endpoint parameter
+    switch (endpoint) {
+      case 'kpis':
         return await handleGetKPIs(req, res);
-      case '/alerts':
+      case 'alerts':
         return await handleGetAlerts(req, res);
-      case '/timeline':
+      case 'timeline':
         return await handleGetTimeline(req, res);
-      case '/heatmap':
+      case 'heatmap':
         return await handleGetHeatmap(req, res);
-      case '':
-      case '/':
+      case 'gamified-metrics':
+        return await handleGetGamifiedMetrics(req, res);
+      default:
         return res.json({
           message: 'Dashboard API',
-          endpoints: ['/kpis', '/alerts', '/timeline', '/heatmap'],
+          endpoints: [
+            '/api/dashboard?endpoint=kpis',
+            '/api/dashboard?endpoint=alerts',
+            '/api/dashboard?endpoint=timeline',
+            '/api/dashboard?endpoint=heatmap',
+            '/api/dashboard?endpoint=gamified-metrics'
+          ],
           user: user
         });
-      default:
-        return res.status(404).json({ message: 'Dashboard endpoint not found' });
     }
   } catch (error) {
     console.error('Dashboard API error:', error);
