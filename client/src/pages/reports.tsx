@@ -74,7 +74,7 @@ export default function Reports() {
 
   // Check current user's role
   const { data: currentUser } = useQuery<{ resource: Resource }>({
-    queryKey: ['/api/auth/me'],
+    queryKey: ['/api/me'],
   });
 
 

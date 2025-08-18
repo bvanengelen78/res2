@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem(TOKEN_KEY);
       if (token) {
         try {
-          const response = await apiRequest('/api/auth/me', {
+          const response = await apiRequest('/api/me', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest('/api/auth/login', {
+      const response = await apiRequest('/api/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       });
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (credentials: RegisterCredentials) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest('/api/auth/register', {
+      const response = await apiRequest('/api/register', {
         method: 'POST',
         body: JSON.stringify(credentials),
       });
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = localStorage.getItem(TOKEN_KEY);
       if (token) {
-        await apiRequest('/api/auth/logout', {
+        await apiRequest('/api/logout', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
       if (!refreshToken) throw new Error('No refresh token');
       
-      const response = await apiRequest('/api/auth/refresh', {
+      const response = await apiRequest('/api/refresh', {
         method: 'POST',
         body: JSON.stringify({ refreshToken }),
       });
@@ -239,7 +239,7 @@ if (typeof window !== 'undefined') {
       try {
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
         if (refreshToken) {
-          const refreshResponse = await originalFetch('/api/auth/refresh', {
+          const refreshResponse = await originalFetch('/api/refresh', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

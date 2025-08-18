@@ -39,7 +39,7 @@ export function ForgotPasswordForm({ onLogin, onRegister }: ForgotPasswordFormPr
       setError(null);
       setIsLoading(true);
       
-      await apiRequest('/api/auth/forgot-password', {
+      await apiRequest('/api/forgot-password', {
         method: 'POST',
         body: JSON.stringify(data),
       });

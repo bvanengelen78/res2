@@ -86,7 +86,7 @@ export default function BusinessControllerReport() {
 
   // Check if current user has Business Controller role
   const { data: currentUser } = useQuery<{ resource: Resource }>({
-    queryKey: ['/api/auth/me'],
+    queryKey: ['/api/me'],
   });
 
   const hasBusinessControllerRole = currentUser?.resource?.roles?.includes('Business Controller');
