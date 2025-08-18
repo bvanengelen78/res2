@@ -55,36 +55,9 @@ async function handlePing(req, res) {
   }
 }
 
-// Main handler with routing
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
-
-  try {
-    // Route based on pathname
-    switch (pathname) {
-      case '/api/health':
-        return await handleHealth(req, res);
-
-      case '/api/ping':
-        return await handlePing(req, res);
-
-      default:
-        return res.status(404).json({ message: 'Not found' });
-    }
-  } catch (error) {
-    console.error('Health API error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
+// Export individual handlers for use by endpoint files
+module.exports = {
+  handleHealth,
+  handlePing,
+  setCorsHeaders
 };
