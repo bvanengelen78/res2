@@ -12,6 +12,18 @@ function setCorsHeaders(res) {
 
 // Simple auth handler for testing
 async function handleAuth(req, res, path) {
+  // Handle base auth path
+  if (path === '' || path === '/') {
+    return res.json({
+      message: 'Authentication API',
+      endpoints: ['/login', '/me'],
+      methods: {
+        '/login': 'POST',
+        '/me': 'GET'
+      }
+    });
+  }
+
   if (path === '/login' && req.method === 'POST') {
     try {
       const { email, password } = req.body;
