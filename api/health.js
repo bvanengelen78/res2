@@ -7,22 +7,12 @@ function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
+// Health check handler
+async function handleHealth(req, res) {
   try {
     // Check Supabase database connectivity
     const healthCheck = await DatabaseService.checkHealth();
-    
+
     // Add environment information
     const response = {
       ...healthCheck,
@@ -48,5 +38,53 @@ module.exports = async function handler(req, res) {
       error: error.message,
       timestamp: new Date().toISOString()
     });
+  }
+}
+
+// Ping handler
+async function handlePing(req, res) {
+  try {
+    res.json({
+      message: "pong",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'unknown'
+    });
+  } catch (error) {
+    console.error('Ping error:', error);
+    res.status(500).json({ message: 'Ping failed' });
+  }
+}
+
+// Main handler with routing
+module.exports = async function handler(req, res) {
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathname = url.pathname;
+
+  try {
+    // Route based on pathname
+    switch (pathname) {
+      case '/api/health':
+        return await handleHealth(req, res);
+
+      case '/api/ping':
+        return await handlePing(req, res);
+
+      default:
+        return res.status(404).json({ message: 'Not found' });
+    }
+  } catch (error) {
+    console.error('Health API error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
