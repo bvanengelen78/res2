@@ -12,14 +12,14 @@ interface SparklineProps {
  * Sparkline component for displaying mini trend charts
  * Derived from shadcn/ui chart patterns and Recharts LineChart
  */
-export const Sparkline: React.FC<SparklineProps> = ({ 
-  data, 
-  className = "h-8 w-16", 
+export const Sparkline: React.FC<SparklineProps> = ({
+  data,
+  className = "h-8 w-16",
   strokeColor = "var(--primary)",
-  strokeWidth = 2 
+  strokeWidth = 2
 }) => {
   // Convert array of numbers to chart data format
-  const chartData = data.map((value, index) => ({
+  const chartData = (data || []).map((value, index) => ({
     index,
     value
   }));

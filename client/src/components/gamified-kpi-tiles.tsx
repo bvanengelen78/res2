@@ -269,7 +269,7 @@ const ForecastAccuracyTile = ({ data, isInitialLoad, index }: ForecastAccuracyTi
   };
 
   const colorConfig = getColorConfig(data.color);
-  const chartData = data.trend.map((value, index) => ({ value, index }));
+  const chartData = (data.trend || []).map((value, index) => ({ value, index }));
 
   return (
     <Tooltip>
@@ -460,7 +460,7 @@ const ProjectLeaderboard = ({ data, isInitialLoad, index }: ProjectLeaderboardPr
 
             {/* Top Projects */}
             <div className="flex-1 space-y-1 overflow-hidden">
-              {data.slice(0, 5).map((project, idx) => (
+              {(data || []).slice(0, 5).map((project, idx) => (
                 <div key={project.name} className="flex items-center justify-between text-sm min-h-[24px] py-1">
                   <div className="flex items-center space-x-2 flex-1 min-w-0">
                     <span className="text-xs font-medium text-gray-400 w-4 flex-shrink-0">
@@ -487,7 +487,7 @@ const ProjectLeaderboard = ({ data, isInitialLoad, index }: ProjectLeaderboardPr
                 </div>
               ))}
 
-              {data.length === 0 && (
+              {(!data || data.length === 0) && (
                 <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                   No projects to rank
                 </div>
