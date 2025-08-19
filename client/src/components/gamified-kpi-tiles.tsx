@@ -773,6 +773,38 @@ export function GamifiedKpiTiles({
     );
   }
 
+  // Add null check for metrics to prevent runtime errors during period transitions
+  if (!metrics) {
+    return (
+      <div className={className}>
+        <Card className="bg-white rounded-xl shadow-sm">
+          <CardHeader className="p-6 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+                <Gamepad2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-lg font-semibold text-slate-900">
+                  Gamified Insights
+                </CardTitle>
+                <p className="text-sm text-slate-500 mt-1">
+                  {currentPeriod.label} - Loading performance metrics...
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {Array.from({ length: 7 }).map((_, index) => (
+                <TileSkeleton key={index} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider>
       <div className={className}>
