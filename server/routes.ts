@@ -320,133 +320,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Resources endpoint (mock for development)
+  // Resources endpoint - delegate to new Vercel API structure
   app.get("/api/resources", async (req, res) => {
     try {
-      // Manual authentication check
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      const token = authHeader.substring(7);
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        jwt.verify(token, JWT_SECRET);
-      } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
-
-      // Return mock resources data (same as Vercel function)
-      const mockResources = [
-        {
-          id: 1,
-          name: 'John Doe',
-          email: 'john.doe@company.com',
-          role: 'Frontend Developer',
-          jobRole: 'Senior Developer',
-          department: 'Engineering',
-          weeklyCapacity: 40,
-          status: 'active',
-          skills: ['React', 'TypeScript', 'CSS'],
-          allocations: []
-        },
-        {
-          id: 2,
-          name: 'Jane Smith',
-          email: 'jane.smith@company.com',
-          role: 'Backend Developer',
-          jobRole: 'Senior Developer',
-          department: 'Engineering',
-          weeklyCapacity: 40,
-          status: 'active',
-          skills: ['Node.js', 'PostgreSQL', 'API Design'],
-          allocations: []
-        },
-        {
-          id: 3,
-          name: 'Mike Johnson',
-          email: 'mike.johnson@company.com',
-          role: 'UI/UX Designer',
-          jobRole: 'Designer',
-          department: 'Design',
-          weeklyCapacity: 40,
-          status: 'active',
-          skills: ['Figma', 'User Research', 'Prototyping'],
-          allocations: []
-        }
-      ];
-
-      res.json(mockResources);
+      // Import and use the new Vercel API endpoint
+      const resourcesHandler = await import('../api/resources.js');
+      return await resourcesHandler.default(req, res);
     } catch (error) {
-      console.error('Resources API error:', error);
-      res.status(500).json({ message: 'Failed to fetch resources' });
+      console.error('Error delegating to resources endpoint:', error);
+      res.status(500).json({ message: "Failed to fetch resources" });
     }
   });
 
-  // Projects endpoint (mock for development)
+  // Projects endpoint - delegate to new Vercel API structure
   app.get("/api/projects", async (req, res) => {
     try {
-      // Manual authentication check
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      const token = authHeader.substring(7);
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        jwt.verify(token, JWT_SECRET);
-      } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
-
-      // Return mock projects data (same as Vercel function)
-      const mockProjects = [
-        {
-          id: 1,
-          name: 'Project Alpha',
-          description: 'Frontend redesign project',
-          status: 'active',
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-          budget: 50000,
-          priority: 'high',
-          department: 'Engineering',
-          allocations: []
-        },
-        {
-          id: 2,
-          name: 'Project Beta',
-          description: 'API modernization initiative',
-          status: 'active',
-          startDate: '2024-02-15',
-          endDate: '2024-08-15',
-          budget: 75000,
-          priority: 'medium',
-          department: 'Engineering',
-          allocations: []
-        },
-        {
-          id: 3,
-          name: 'Project Gamma',
-          description: 'User experience research',
-          status: 'planning',
-          startDate: '2024-03-01',
-          endDate: '2024-05-31',
-          budget: 25000,
-          priority: 'low',
-          department: 'Design',
-          allocations: []
-        }
-      ];
-
-      res.json(mockProjects);
+      // Import and use the new Vercel API endpoint
+      const projectsHandler = await import('../api/projects.js');
+      return await projectsHandler.default(req, res);
     } catch (error) {
-      console.error('Projects API error:', error);
-      res.status(500).json({ message: 'Failed to fetch projects' });
+      console.error('Error delegating to projects endpoint:', error);
+      res.status(500).json({ message: "Failed to fetch projects" });
     }
   });
 

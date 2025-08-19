@@ -7,7 +7,10 @@ const kpisQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   department: z.string().optional(),
-  includeTrends: z.string().transform(val => val === 'true').optional().default(true)
+  includeTrends: z.union([
+    z.string().transform(val => val === 'true'),
+    z.boolean()
+  ]).optional().default(true)
 });
 
 // Calculate KPIs from real Supabase data

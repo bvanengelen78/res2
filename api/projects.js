@@ -6,8 +6,14 @@ const { DatabaseService } = require('./lib/supabase');
 const projectsQuerySchema = z.object({
   department: z.string().optional(),
   status: z.enum(['active', 'inactive', 'planning', 'completed', 'all']).optional().default('active'),
-  includeAllocations: z.string().transform(val => val === 'true').optional().default(false),
-  includeMetrics: z.string().transform(val => val === 'true').optional().default(false),
+  includeAllocations: z.union([
+    z.string().transform(val => val === 'true'),
+    z.boolean()
+  ]).optional().default(false),
+  includeMetrics: z.union([
+    z.string().transform(val => val === 'true'),
+    z.boolean()
+  ]).optional().default(false),
   search: z.string().optional(),
   sortBy: z.enum(['name', 'startDate', 'priority', 'budget']).optional().default('name'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc')

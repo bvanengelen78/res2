@@ -6,7 +6,10 @@ const { DatabaseService } = require('./lib/supabase');
 const resourcesQuerySchema = z.object({
   department: z.string().optional(),
   status: z.enum(['active', 'inactive', 'all']).optional().default('active'),
-  includeAllocations: z.string().transform(val => val === 'true').optional().default(false),
+  includeAllocations: z.union([
+    z.string().transform(val => val === 'true'),
+    z.boolean()
+  ]).optional().default(false),
   search: z.string().optional()
 });
 
