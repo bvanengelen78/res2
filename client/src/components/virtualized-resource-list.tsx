@@ -35,6 +35,8 @@ export function VirtualizedResourceList({
   containerHeight = 600,
   isLoading = false,
 }: VirtualizedResourceListProps) {
+  // Defensive programming: ensure resources is always an array
+  const safeResources = resources || [];
   const [scrollTop, setScrollTop] = useState(0);
   const [containerSize, setContainerSize] = useState({ width: 0, height: containerHeight });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,8 +47,8 @@ export function VirtualizedResourceList({
   const { startIndex, endIndex, totalHeight } = useMemo(() => {
     const visibleHeight = containerSize.height;
     const itemsPerRow = viewMode === 'grid' ? Math.floor(containerSize.width / 350) || 1 : 1;
-    const totalRows = Math.ceil(resources.length / itemsPerRow);
-    
+    const totalRows = Math.ceil(safeResources.length / itemsPerRow);
+
     const startRow = Math.floor(scrollTop / actualItemHeight);
     const endRow = Math.min(
       totalRows - 1,
@@ -58,15 +60,15 @@ export function VirtualizedResourceList({
 
     return {
       startIndex: bufferedStartRow * itemsPerRow,
-      endIndex: Math.min(resources.length - 1, (bufferedEndRow + 1) * itemsPerRow - 1),
+      endIndex: Math.min(safeResources.length - 1, (bufferedEndRow + 1) * itemsPerRow - 1),
       totalHeight: totalRows * actualItemHeight,
     };
-  }, [scrollTop, containerSize, resources.length, actualItemHeight, viewMode]);
+  }, [scrollTop, containerSize, safeResources.length, actualItemHeight, viewMode]);
 
   // Get visible items
   const visibleItems = useMemo(() => {
-    return resources.slice(startIndex, endIndex + 1);
-  }, [resources, startIndex, endIndex]);
+    return safeResources.slice(startIndex, endIndex + 1);
+  }, [safeResources, startIndex, endIndex]);
 
   // Handle scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -88,12 +90,12 @@ export function VirtualizedResourceList({
   }, []);
 
   // For small datasets, don't virtualize
-  if (resources.length <= 50) {
+  if (safeResources.length <= 50) {
     return (
       <div className={className}>
         {viewMode === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {resources.map((resource) => (
+            {safeResources.map((resource) => (
               <EnhancedResourceCardV2
                 key={resource.id}
                 resource={resource}
@@ -109,7 +111,7 @@ export function VirtualizedResourceList({
 
         {viewMode === 'list' && (
           <div className="space-y-3">
-            {resources.map((resource) => (
+            {safeResources.map((resource) => (
               <EnhancedResourceCardV2
                 key={resource.id}
                 resource={resource}
@@ -125,7 +127,7 @@ export function VirtualizedResourceList({
 
         {viewMode === 'table' && (
           <ResourceTableView
-            resources={resources}
+            resources={safeResources}
             onEdit={onEdit}
             onSelectionChange={onSelectionChange}
             allocations={allocations}
@@ -197,9 +199,9 @@ export function VirtualizedResourceList({
       </div>
 
       {/* Loading indicator for large datasets */}
-      {resources.length > 100 && (
+      {safeResources.length > 100 && (
         <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-xs text-gray-600 shadow-sm">
-          Showing {visibleItems.length} of {resources.length} resources
+          Showing {visibleItems.length} of {safeResources.length} resources
         </div>
       )}
     </div>

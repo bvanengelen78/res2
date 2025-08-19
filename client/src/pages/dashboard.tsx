@@ -539,7 +539,7 @@ export default function Dashboard() {
           ) : (
             // KPI Cards Grid with enhanced transition animation
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {transformKPIData(kpis, kpis.trendData, periodFilter).map((kpiData, index) => (
+              {transformKPIData(kpis, kpis?.trendData, periodFilter).map((kpiData, index) => (
                 <div
                   key={`${kpiData.title}-${periodFilter}`} // Key includes period for proper re-animation
                   className={`${

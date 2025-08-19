@@ -62,7 +62,7 @@ const KpiCard: React.FC<KpiCardProps> = ({
    * @param dataArray - Array of numbers
    * @returns Array of objects with index and value properties
    */
-  const chartData = data.map((value, index) => ({
+  const chartData = (data || []).map((value, index) => ({
     index,
     value
   }));

@@ -52,7 +52,7 @@ export default function Resources() {
   const { currentFilter, effectiveFilter, updateFilter, hasActiveFilters, clearAllFilters } = useSavedFilters();
 
   // Data fetching hooks - must be declared before animation effects that depend on them
-  const { data: resources, isLoading, error: resourcesError, refetch: refetchResources } = useQuery({
+  const { data: resources = [], isLoading, error: resourcesError, refetch: refetchResources } = useQuery({
     queryKey: ["/api/resources"],
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: true,

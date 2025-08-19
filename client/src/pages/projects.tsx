@@ -45,7 +45,7 @@ export default function Projects() {
 
 
 
-  const { data: projects, isLoading, error: projectsError } = useQuery({
+  const { data: projects = [], isLoading, error: projectsError } = useQuery({
     queryKey: ["/api/projects"],
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
