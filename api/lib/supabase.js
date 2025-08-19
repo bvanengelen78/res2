@@ -1,7 +1,12 @@
+// Load environment variables for development
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
+
 const { createClient } = require('@supabase/supabase-js');
 const { Logger, withRetry } = require('./middleware');
 
-// Supabase configuration for Vercel serverless functions
+// Supabase configuration for both development and production
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -112,28 +117,28 @@ const DatabaseService = {
     });
   },
 
-  // Projects
+  // Projects with enhanced error handling and retry logic
   async getProjects() {
-    try {
+    return withRetry(async () => {
+      Logger.info('Fetching projects from database');
+
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('is_active', true)
-        .eq('is_deleted', false)
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Error fetching projects:', error);
-        return [];
+        Logger.error('Failed to fetch projects', error);
+        throw new Error(`Database error: ${error.message}`);
       }
 
-      return (data || []).map(project =>
+      const projects = (data || []).map(project =>
         SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(project), ['createdAt', 'updatedAt', 'startDate', 'endDate'])
       );
-    } catch (err) {
-      console.error('Unexpected error in getProjects:', err);
-      return [];
-    }
+
+      Logger.info('Successfully fetched projects', { count: projects.length });
+      return projects;
+    });
   },
 
   // Departments
@@ -180,6 +185,30 @@ const DatabaseService = {
       console.error('Unexpected error in getOgsmCharters:', err);
       return [];
     }
+  },
+
+  // Resource Allocations with enhanced error handling and retry logic
+  async getResourceAllocations() {
+    return withRetry(async () => {
+      Logger.info('Fetching resource allocations from database');
+
+      const { data, error } = await supabase
+        .from('resource_allocations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        Logger.error('Failed to fetch resource allocations', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const allocations = (data || []).map(allocation =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(allocation), ['createdAt', 'updatedAt', 'startDate', 'endDate'])
+      );
+
+      Logger.info('Successfully fetched resource allocations', { count: allocations.length });
+      return allocations;
+    });
   },
 
   // Health check

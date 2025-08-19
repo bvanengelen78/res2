@@ -2312,157 +2312,14 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  // Dashboard analytics routes
+  // Dashboard analytics routes - delegate to new Vercel API structure
   app.get("/api/dashboard/kpis", async (req, res) => {
     try {
-      const { department, debug, includeTrends, startDate, endDate } = req.query;
-
-      const resources = await storage.getResources();
-      const projects = await storage.getProjects();
-      let allocations = await storage.getResourceAllocations();
-
-      // Apply date filtering to allocations if specified
-      if (startDate && endDate) {
-        const filterStartDate = new Date(startDate as string);
-        const filterEndDate = new Date(endDate as string);
-
-        allocations = allocations.filter(allocation => {
-          const allocationStart = new Date(allocation.startDate);
-          const allocationEnd = new Date(allocation.endDate);
-
-          // Include allocations that overlap with the filter period
-          return allocationStart <= filterEndDate && allocationEnd >= filterStartDate;
-        });
-
-        console.log(`[KPI] Applied period filter: ${startDate} to ${endDate}, filtered allocations: ${allocations.length}`);
-      }
-
-      // Apply department filter to resources if specified
-      const filteredResources = department && department !== 'all'
-        ? resources.filter(r => {
-            const resourceDepartment = r.department || r.role || 'General';
-            return resourceDepartment === department;
-          })
-        : resources;
-
-      // Calculate KPIs with improved logic and period filtering
-      let activeProjects = projects.filter(p => p.status === 'active').length;
-
-      // If period filtering is applied, only count projects active during the period
-      if (startDate && endDate) {
-        const filterStartDate = new Date(startDate as string);
-        const filterEndDate = new Date(endDate as string);
-
-        activeProjects = projects.filter(project => {
-          if (project.status !== 'active') return false;
-
-          const projectStart = new Date(project.startDate);
-          const projectEnd = new Date(project.endDate);
-
-          // Include projects that overlap with the filter period
-          return projectStart <= filterEndDate && projectEnd >= filterStartDate;
-        }).length;
-      }
-
-      // Available resources: active resources with utilization < 100%
-      const resourceUtilization = new Map();
-      const activeAllocations = allocations.filter(a => a.status === 'active');
-
-      // Only consider allocations for filtered resources
-      const filteredResourceIds = new Set(filteredResources.map(r => r.id));
-      const relevantAllocations = activeAllocations.filter(a => filteredResourceIds.has(a.resourceId));
-
-      // Calculate period-aware allocated hours
-      relevantAllocations.forEach(allocation => {
-        const key = allocation.resourceId;
-        let allocatedHours = 0;
-
-        // If period filtering is applied, calculate hours for the specific period
-        if (startDate && endDate) {
-          allocatedHours = calculatePeriodAllocatedHours(allocation, startDate as string, endDate as string);
-        } else {
-          // Use base allocated hours if no period filtering
-          allocatedHours = parseFloat(allocation.allocatedHours || '0');
-        }
-
-        const current = resourceUtilization.get(key) || 0;
-        resourceUtilization.set(key, current + allocatedHours);
-      });
-
-      let availableResources = 0;
-      let totalCapacity = 0;
-      let totalAllocated = 0;
-
-      // FIXED: Single, accurate conflicts calculation
-      // Count resources that are actually over 100% utilization
-      let actualConflicts = 0;
-
-      filteredResources.forEach(resource => {
-        if (resource.isActive) {
-          let capacity = parseFloat(resource.weeklyCapacity || '40');
-          const allocated = resourceUtilization.get(resource.id) || 0;
-
-          // Adjust capacity for the period if period filtering is applied
-          if (startDate && endDate) {
-            const periodMultiplier = calculatePeriodMultiplier(startDate as string, endDate as string);
-            capacity = capacity * periodMultiplier;
-          }
-
-          // Calculate utilization with explicit precision handling
-          const utilization = capacity > 0 ? (allocated / capacity) * 100 : 0;
-
-          totalCapacity += capacity;
-          totalAllocated += allocated;
-
-          // Count as available if utilization is less than 100%
-          if (utilization < 100) {
-            availableResources++;
-          }
-
-          // Only count as conflict if utilization is clearly over 100%
-          // Use strict threshold to avoid false positives
-          if (utilization > 100.01) {
-            actualConflicts++;
-          }
-        }
-      });
-
-      // Calculate overall utilization rate
-      const utilization = totalCapacity > 0 ? Math.round((totalAllocated / totalCapacity) * 100) : 0;
-
-      // Disable caching to ensure fresh data
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
-
-      const response: any = {
-        activeProjects,
-        availableResources,
-        conflicts: actualConflicts, // Use the corrected count
-        utilization
-      };
-
-      // Include trend data if requested
-      if (includeTrends === 'true') {
-        try {
-          const [activeProjectsTrend, utilisationRateTrend] = await Promise.all([
-            storage.getActiveProjectsTrend(),
-            storage.getUtilisationRateTrend()
-          ]);
-
-          response.trendData = {
-            activeProjects: activeProjectsTrend,
-            utilization: utilisationRateTrend
-          };
-        } catch (trendError) {
-          console.error('Error fetching trend data:', trendError);
-          // Continue without trend data if there's an error
-        }
-      }
-
-      res.json(response);
+      // Import and use the new Vercel API endpoint
+      const kpisHandler = await import('../api/dashboard/kpis.js');
+      return await kpisHandler.default(req, res);
     } catch (error) {
-      console.error('Error fetching dashboard KPIs:', error);
+      console.error('Error delegating to KPIs endpoint:', error);
       res.status(500).json({ message: "Failed to fetch dashboard KPIs" });
     }
   });
@@ -5079,42 +4936,14 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  // Gamified KPI Metrics endpoint
-  app.get("/api/dashboard/gamified-metrics", authenticate, async (req, res) => {
+  // Gamified KPI Metrics endpoint - delegate to new Vercel API structure
+  app.get("/api/dashboard/gamified-metrics", async (req, res) => {
     try {
-      const { startDate, endDate } = req.query;
-
-      // Fetch all necessary data
-      const [
-        resources,
-        projects,
-        allocations,
-        timeEntries
-      ] = await Promise.all([
-        storage.getResources(),
-        storage.getProjects(),
-        storage.getResourceAllocations(),
-        storage.getTimeEntries()
-      ]);
-
-      // Calculate alerts directly (simplified version for gamified metrics)
-      const alertSettings = await storage.getAlertSettings('capacity');
-      const alerts = calculateSimpleAlerts(resources, allocations, alertSettings);
-
-      // Calculate gamified metrics
-      const gamifiedMetrics = calculateGamifiedMetrics(
-        resources,
-        projects,
-        allocations,
-        timeEntries,
-        alerts,
-        startDate as string,
-        endDate as string
-      );
-
-      res.json(gamifiedMetrics);
+      // Import and use the new Vercel API endpoint
+      const gamifiedMetricsHandler = await import('../api/dashboard/gamified-metrics.js');
+      return await gamifiedMetricsHandler.default(req, res);
     } catch (error) {
-      console.error('Error fetching gamified metrics:', error);
+      console.error('Error delegating to gamified metrics endpoint:', error);
       res.status(500).json({ message: "Failed to fetch gamified metrics" });
     }
   });

@@ -1,3 +1,8 @@
+// Load environment variables for development
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
+
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 
