@@ -7,6 +7,7 @@ import { ResourceForm } from "@/components/resource-form";
 import { ProjectForm } from "@/components/project-form";
 import { RoleSkillHeatmap } from "@/components/role-skill-heatmap";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { DashboardErrorBoundary } from "@/components/dashboard-error-boundary";
 import { ChangeAllocationReportModal } from "@/components/change-allocation-report-modal";
 import { GamifiedKpiTiles } from "@/components/gamified-kpi-tiles";
 import { Badge } from "@/components/ui/badge";
@@ -132,13 +133,23 @@ const transformKPIData = (
   periodFilter?: PeriodFilter
 ) => {
   try {
-    if (!kpis) return [];
+    if (!kpis) {
+      console.log('[transformKPIData] No kpis data provided');
+      return [];
+    }
 
     // Additional safety check for production
     if (typeof kpis !== 'object') {
       console.warn('[transformKPIData] Invalid kpis data type:', typeof kpis);
       return [];
     }
+
+    console.log('[transformKPIData] Processing KPI data:', {
+      hasKpis: !!kpis,
+      hasTrendData: !!trendData,
+      periodFilter,
+      kpisKeys: Object.keys(kpis || {})
+    });
 
   // Only include KPIs that have real data (no fallbacks to zeros)
   const kpiConfigs = [
@@ -227,9 +238,8 @@ export default function Dashboard() {
     const minTransitionDuration = 250; // Reduced for snappier feel
     const maxTransitionDuration = 500; // Cap for perceived performance
 
-    // Check if queries are likely to be fast (cached data)
-    const isLikelyCached = transitionStartTime && (Date.now() - transitionStartTime) < 100;
-    const transitionDuration = isLikelyCached ? minTransitionDuration : maxTransitionDuration;
+    // Use a fixed transition duration to prevent timing issues
+    const transitionDuration = minTransitionDuration;
 
     const transitionTimer = setTimeout(() => {
       setIsTransitioning(false);
@@ -498,6 +508,7 @@ export default function Dashboard() {
         <section className={`transition-all duration-500 ease-in-out ${
           isInitialLoad ? 'dashboard-entrance dashboard-entrance-kpis gpu-accelerated' : ''
         }`}>
+          <DashboardErrorBoundary componentName="KPI Cards">
           {kpisLoading || !kpis || isTransitioning ? (
             // Enhanced loading state with skeleton cards - shows during initial load AND period transitions
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -554,6 +565,7 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          </DashboardErrorBoundary>
         </section>
 
         {/* Gamified KPI Tiles Section */}
@@ -564,6 +576,7 @@ export default function Dashboard() {
               ? 'period-transition-active'
               : ''
         }`}>
+          <DashboardErrorBoundary componentName="Gamified KPI Tiles">
           <GamifiedKpiTiles
             currentPeriod={{
               startDate: currentPeriod.startDate,
@@ -574,6 +587,7 @@ export default function Dashboard() {
             isTransitioning={isTransitioning}
             className="animate-in fade-in-50 duration-500"
           />
+          </DashboardErrorBoundary>
         </section>
 
         {/* Critical Alerts Section - Always Expanded */}
@@ -584,6 +598,7 @@ export default function Dashboard() {
               ? 'period-transition-active'
               : ''
         }`}>
+          <DashboardErrorBoundary componentName="Enhanced Capacity Alerts">
           <EnhancedCapacityAlerts
             alerts={alerts}
             isLoading={alertsLoading || isTransitioning}
@@ -597,6 +612,7 @@ export default function Dashboard() {
             periodFilter={periodFilter}
             isTransitioning={isTransitioning}
           />
+          </DashboardErrorBoundary>
         </section>
 
         {/* Analytics Section - Two Column Layout */}
