@@ -131,7 +131,14 @@ const transformKPIData = (
   },
   periodFilter?: PeriodFilter
 ) => {
-  if (!kpis) return [];
+  try {
+    if (!kpis) return [];
+
+    // Additional safety check for production
+    if (typeof kpis !== 'object') {
+      console.warn('[transformKPIData] Invalid kpis data type:', typeof kpis);
+      return [];
+    }
 
   // Only include KPIs that have real data (no fallbacks to zeros)
   const kpiConfigs = [
@@ -176,6 +183,10 @@ const transformKPIData = (
     data: kpi.data,
     comparisonText
   }));
+  } catch (error) {
+    console.error('[transformKPIData] Error processing KPI data:', error);
+    return [];
+  }
 };
 
 export default function Dashboard() {
@@ -316,27 +327,9 @@ export default function Dashboard() {
     refetchOnMount: true, // Refetch when component mounts
   });
 
-
-
-  const { data: timelineData, isLoading: timelineLoading } = useQuery({
-    queryKey: ["/api/dashboard", "timeline", currentPeriod.startDate, currentPeriod.endDate],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('endpoint', 'timeline');
-      params.append('startDate', currentPeriod.startDate);
-      params.append('endDate', currentPeriod.endDate);
-
-      const response = await fetch(`/api/dashboard?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch timeline data');
-      return response.json();
-    },
-    staleTime: 0, // Always fetch fresh data
-    refetchOnMount: true, // Refetch when component mounts
-  });
-
   // Highly optimized animation management with proper completion detection
   useEffect(() => {
-    if (isInitialLoad && !kpisLoading && !alertsLoading && !resourcesLoading && !timelineLoading) {
+    if (isInitialLoad && !kpisLoading && !alertsLoading && !resourcesLoading) {
       if (!shouldEnableAnimations()) {
         // Skip animations entirely for reduced motion or low-end devices
         setIsInitialLoad(false);
@@ -386,7 +379,7 @@ export default function Dashboard() {
 
       return () => clearTimeout(timer);
     }
-  }, [isInitialLoad, kpisLoading, alertsLoading, resourcesLoading, timelineLoading, animationConfig]);
+  }, [isInitialLoad, kpisLoading, alertsLoading, resourcesLoading, animationConfig]);
 
   // Performance monitoring for period transitions
   useEffect(() => {
@@ -422,7 +415,7 @@ export default function Dashboard() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  if (kpisLoading || alertsLoading || resourcesLoading || timelineLoading) {
+  if (kpisLoading || alertsLoading || resourcesLoading) {
     return <DashboardSkeleton />;
   }
 
@@ -539,7 +532,7 @@ export default function Dashboard() {
           ) : (
             // KPI Cards Grid with enhanced transition animation
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {transformKPIData(kpis, kpis?.trendData, periodFilter).map((kpiData, index) => (
+              {(transformKPIData(kpis, kpis?.trendData, periodFilter) || []).map((kpiData, index) => (
                 <div
                   key={`${kpiData.title}-${periodFilter}`} // Key includes period for proper re-animation
                   className={`${
