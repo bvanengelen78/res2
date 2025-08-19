@@ -155,7 +155,7 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
       const progressGap = expectedProgress - project.progress;
       
       if (progressGap > 20 && daysRemaining > 0) {
-        alerts.push({
+        alertsList.push({
           id: `deadline-${project.id}`,
           type: 'deadline',
           severity: progressGap > 40 ? 'critical' : 'warning',
