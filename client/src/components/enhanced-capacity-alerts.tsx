@@ -274,14 +274,14 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
                       <p className="text-red-100 text-sm">
                         {isExecutiveSummaryExpanded
                           ? "Critical capacity issues requiring immediate attention"
-                          : `${managementInsights.totalCritical} critical issues • ${managementInsights.criticalResources.length + managementInsights.errorResources.length} resources affected • Click to expand`
+                          : `${managementInsights?.totalCritical || 0} critical issues • ${(managementInsights?.criticalResources?.length || 0) + (managementInsights?.errorResources?.length || 0)} resources affected • Click to expand`
                         }
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
                       {!isExecutiveSummaryExpanded && (
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-white">{managementInsights.totalCritical}</div>
+                          <div className="text-2xl font-bold text-white">{managementInsights?.totalCritical || 0}</div>
                           <div className="text-xs text-red-100">Critical Issues</div>
                         </div>
                       )}
@@ -312,12 +312,12 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
                           </div>
                           <h4 className="font-semibold text-red-800 text-base">Critical Resources</h4>
                           <Badge variant="destructive" className="ml-auto text-xs">
-                            {managementInsights.totalCritical} affected
+                            {managementInsights?.totalCritical || 0} affected
                           </Badge>
                         </div>
 
                         <div className="space-y-3">
-                          {[...managementInsights.criticalResources, ...managementInsights.errorResources]
+                          {[...(managementInsights?.criticalResources || []), ...(managementInsights?.errorResources || [])]
                             .slice(0, 3)
                             .map((resource, index) => (
                               <div key={index} className="flex items-center justify-between p-3 bg-white/60 rounded-lg border border-red-100">
@@ -335,10 +335,10 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
                               </div>
                             ))}
 
-                          {managementInsights.totalCritical > 3 && (
+                          {(managementInsights?.totalCritical || 0) > 3 && (
                             <div className="flex items-center justify-center p-3 bg-red-50 rounded-lg border border-red-100">
                               <span className="text-sm font-medium text-red-700">
-                                +{managementInsights.totalCritical - 3} more resources require attention
+                                +{(managementInsights?.totalCritical || 0) - 3} more resources require attention
                               </span>
                             </div>
                           )}
@@ -358,7 +358,7 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
                       </div>
 
                       <div className="space-y-3">
-                        {managementInsights.recommendations.map((rec, index) => (
+                        {(managementInsights?.recommendations || []).map((rec, index) => (
                           <div key={index} className="flex items-start gap-3 p-3 bg-white/60 rounded-lg border border-orange-100">
                             <div className="flex-shrink-0 mt-0.5">
                               <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center">

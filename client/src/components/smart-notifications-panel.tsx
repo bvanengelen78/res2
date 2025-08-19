@@ -105,7 +105,7 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
       alerts.categories.forEach(category => {
         resourcesWithUtilization.push(...category.resources);
       });
-    } else if (resources.length > 0) {
+    } else if (resources && Array.isArray(resources) && resources.length > 0) {
       resourcesWithUtilization = resources
         .filter(r => r.utilization !== undefined)
         .map(r => ({
@@ -147,7 +147,8 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
     });
 
     // Project deadline predictions
-    projects.forEach(project => {
+    if (projects && Array.isArray(projects)) {
+      projects.forEach(project => {
       const endDate = parseISO(project.endDate);
       const daysRemaining = differenceInDays(endDate, new Date());
       const expectedProgress = Math.max(0, Math.min(100, 100 - (daysRemaining / 90) * 100));
@@ -165,7 +166,8 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
           daysAhead: daysRemaining
         });
       }
-    });
+      });
+    }
 
     return alertsList.sort((a, b) => {
       const severityWeight = { critical: 3, warning: 2, info: 1 };
