@@ -1,49 +1,14 @@
-const jwt = require('jsonwebtoken');
+const { withMiddleware, Logger, createSuccessResponse } = require('./lib/middleware');
+const { DatabaseService } = require('./lib/supabase');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// CORS helper
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
-
-// Auth helper
-function verifyToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  try {
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded.user;
-  } catch (error) {
-    return null;
-  }
-}
-
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+// Main user profile handler
+const meHandler = async (req, res, { user }) => {
+  Logger.info('Fetching user profile', { userId: user.id });
 
   try {
-    const user = verifyToken(req);
-    if (!user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    res.json({
+    // TODO: Fetch real user data from Supabase
+    // For now, return mock data based on authenticated user
+    const userData = {
       user: {
         id: user.id,
         email: user.email,
@@ -56,9 +21,18 @@ module.exports = async function handler(req, res) {
         ],
         resource: { id: user.resourceId, name: 'Test User', role: 'Developer' }
       }
-    });
+    };
+
+    Logger.info('User profile fetched successfully', { userId: user.id });
+    return res.json(userData);
   } catch (error) {
-    console.error('Me error:', error);
-    res.status(500).json({ message: 'Authentication failed' });
+    Logger.error('Failed to fetch user profile', error, { userId: user.id });
+    return createErrorResponse(res, 500, 'Failed to fetch user profile');
   }
 };
+
+// Export with middleware
+module.exports = withMiddleware(meHandler, {
+  requireAuth: true,
+  allowedMethods: ['GET']
+});

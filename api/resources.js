@@ -1,77 +1,79 @@
-const jwt = require('jsonwebtoken');
+const { z } = require('zod');
+const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 const { DatabaseService } = require('./lib/supabase');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// Input validation schema
+const resourcesQuerySchema = z.object({
+  department: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'all']).optional().default('active'),
+  includeAllocations: z.string().transform(val => val === 'true').optional().default(false),
+  search: z.string().optional()
+});
 
-// CORS helper
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
+// Main resources handler
+const resourcesHandler = async (req, res, { user, validatedData }) => {
+  const { department, status, includeAllocations, search } = validatedData;
 
-// Auth helper
-function verifyToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  try {
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded.user;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Mock data
-const mockResources = [
-  {
-    id: 1, name: 'John Doe', email: 'john.doe@company.com', role: 'Frontend Developer',
-    jobRole: 'Senior Developer', department: 'Engineering', weeklyCapacity: 40,
-    status: 'active', skills: ['React', 'TypeScript', 'CSS'], allocations: []
-  },
-  {
-    id: 2, name: 'Jane Smith', email: 'jane.smith@company.com', role: 'Backend Developer',
-    jobRole: 'Senior Developer', department: 'Engineering', weeklyCapacity: 40,
-    status: 'active', skills: ['Node.js', 'PostgreSQL', 'API Design'], allocations: []
-  },
-  {
-    id: 3, name: 'Mike Johnson', email: 'mike.johnson@company.com', role: 'UI/UX Designer',
-    jobRole: 'Designer', department: 'Design', weeklyCapacity: 40,
-    status: 'active', skills: ['Figma', 'User Research', 'Prototyping'], allocations: []
-  }
-];
-
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  // Verify authentication
-  const user = verifyToken(req);
-  if (!user) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
+  Logger.info('Fetching resources', {
+    userId: user.id,
+    department,
+    status,
+    includeAllocations,
+    search
+  });
 
   try {
-    const resources = await DatabaseService.getResources();
-    if (resources.length === 0) {
-      console.warn('No resources found in Supabase, falling back to mock data');
-      return res.json(mockResources);
+    // Fetch resources from Supabase (no fallback to mock data)
+    let resources = await DatabaseService.getResources();
+
+    // Apply filters
+    if (department && department !== 'all') {
+      resources = resources.filter(resource => {
+        const resourceDepartment = resource.department || resource.role || 'General';
+        return resourceDepartment === department;
+      });
     }
-    res.json(resources);
+
+    if (status !== 'all') {
+      const isActive = status === 'active';
+      resources = resources.filter(resource => resource.isActive === isActive);
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      resources = resources.filter(resource =>
+        resource.name.toLowerCase().includes(searchLower) ||
+        resource.email.toLowerCase().includes(searchLower) ||
+        (resource.role && resource.role.toLowerCase().includes(searchLower)) ||
+        (resource.department && resource.department.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Include allocations if requested
+    if (includeAllocations) {
+      const allocations = await DatabaseService.getResourceAllocations();
+      resources = resources.map(resource => ({
+        ...resource,
+        allocations: allocations.filter(allocation => allocation.resourceId === resource.id)
+      }));
+    }
+
+    Logger.info('Resources fetched successfully', {
+      userId: user.id,
+      count: resources.length,
+      filters: { department, status, search }
+    });
+
+    return res.json(resources);
   } catch (error) {
-    console.error('Get resources error:', error);
-    res.json(mockResources);
+    Logger.error('Failed to fetch resources', error, { userId: user.id });
+    return createErrorResponse(res, 500, 'Failed to fetch resources');
   }
 };
+
+// Export with middleware
+module.exports = withMiddleware(resourcesHandler, {
+  requireAuth: true,
+  allowedMethods: ['GET'],
+  validateSchema: resourcesQuerySchema
+});

@@ -1,15 +1,20 @@
 const { createClient } = require('@supabase/supabase-js');
+const { Logger, withRetry } = require('./middleware');
 
 // Supabase configuration for Vercel serverless functions
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
-  throw new Error('SUPABASE_URL environment variable is required');
+  const error = new Error('SUPABASE_URL environment variable is required');
+  Logger.error('Missing Supabase URL configuration', error);
+  throw error;
 }
 
 if (!supabaseServiceKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is required');
+  const error = new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is required');
+  Logger.error('Missing Supabase service key configuration', error);
+  throw error;
 }
 
 // Create Supabase client with service role for admin operations
@@ -17,7 +22,21 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'x-application-name': 'resource-planning-tracker'
+    }
   }
+});
+
+// Log successful connection
+Logger.info('Supabase client initialized', {
+  url: supabaseUrl,
+  hasServiceKey: !!supabaseServiceKey
 });
 
 // Utility functions for data transformation
@@ -67,9 +86,11 @@ const SupabaseUtils = {
 
 // Database service functions
 const DatabaseService = {
-  // Resources
+  // Resources with enhanced error handling and retry logic
   async getResources() {
-    try {
+    return withRetry(async () => {
+      Logger.info('Fetching resources from database');
+
       const { data, error } = await supabase
         .from('resources')
         .select('*')
@@ -78,17 +99,17 @@ const DatabaseService = {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Error fetching resources:', error);
-        return [];
+        Logger.error('Failed to fetch resources', error);
+        throw new Error(`Database error: ${error.message}`);
       }
 
-      return (data || []).map(resource =>
+      const resources = (data || []).map(resource =>
         SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(resource), ['createdAt', 'updatedAt', 'deletedAt'])
       );
-    } catch (err) {
-      console.error('Unexpected error in getResources:', err);
-      return [];
-    }
+
+      Logger.info('Successfully fetched resources', { count: resources.length });
+      return resources;
+    });
   },
 
   // Projects

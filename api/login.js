@@ -1,34 +1,26 @@
 const jwt = require('jsonwebtoken');
+const { z } = require('zod');
+const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
+const { DatabaseService } = require('./lib/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// CORS helper
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
+// Input validation schema
+const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean().optional().default(false)
+});
 
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+// Main login handler
+const loginHandler = async (req, res, { validatedData }) => {
+  const { email, password, rememberMe } = validatedData;
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+  Logger.info('Login attempt', { email, rememberMe });
 
   try {
-    const { email, password, rememberMe } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    // For testing - accept any email/password combination
+    // TODO: Replace with real authentication against Supabase
+    // For now, accept any email/password for development
     if (email && password) {
       const accessToken = jwt.sign(
         { user: { id: 1, email: email, resourceId: 1 } },
@@ -42,7 +34,7 @@ module.exports = async function handler(req, res) {
         { expiresIn: '30d' }
       );
 
-      return res.json({
+      const userData = {
         user: {
           id: 1,
           email: email,
@@ -56,12 +48,23 @@ module.exports = async function handler(req, res) {
           resource: { id: 1, name: 'Test User', role: 'Developer' }
         },
         tokens: { accessToken, refreshToken }
-      });
+      };
+
+      Logger.info('Login successful', { email, userId: 1 });
+      return res.json(userData);
     } else {
-      return res.status(401).json({ message: "Invalid credentials" });
+      Logger.warn('Login failed - invalid credentials', { email });
+      return createErrorResponse(res, 401, 'Invalid credentials');
     }
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: "Login failed" });
+    Logger.error('Login error', error, { email });
+    return createErrorResponse(res, 500, 'Login failed');
   }
 };
+
+// Export with middleware
+module.exports = withMiddleware(loginHandler, {
+  requireAuth: false,
+  allowedMethods: ['POST'],
+  validateSchema: loginSchema
+});
