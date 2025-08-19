@@ -31,8 +31,9 @@ export function calculateTotalAllocatedHours(
   allocation: AllocationWithResource,
   weekColumns: WeekColumn[]
 ): number {
-  if (!allocation.weeklyAllocations) return 0;
-  
+  if (!allocation || !allocation.weeklyAllocations) return 0;
+  if (!weekColumns || !Array.isArray(weekColumns)) return 0;
+
   return weekColumns.reduce((total, week) => {
     return total + (allocation.weeklyAllocations?.[week.key] || 0);
   }, 0);
@@ -42,6 +43,7 @@ export function calculateTotalAllocatedHours(
  * Calculate effective capacity for a resource
  */
 export function calculateEffectiveCapacity(resource: Resource): number {
+  if (!resource) return 0;
   const baseCapacity = parseFloat(resource.weeklyCapacity || '40');
   const nonProjectHours = 8; // Default non-project hours (meetings, admin, etc.)
   return Math.max(0, baseCapacity - nonProjectHours);
@@ -54,17 +56,18 @@ export function calculateAverageUtilization(
   allocation: AllocationWithResource,
   weekColumns: WeekColumn[]
 ): number {
-  if (!allocation.weeklyAllocations || weekColumns.length === 0) return 0;
-  
+  if (!allocation || !allocation.weeklyAllocations) return 0;
+  if (!weekColumns || !Array.isArray(weekColumns) || weekColumns.length === 0) return 0;
+
   const effectiveCapacity = calculateEffectiveCapacity(allocation.resource);
   if (effectiveCapacity === 0) return 0;
-  
+
   const totalUtilization = weekColumns.reduce((total, week) => {
     const weekHours = allocation.weeklyAllocations?.[week.key] || 0;
     const weekUtilization = (weekHours / effectiveCapacity) * 100;
     return total + weekUtilization;
   }, 0);
-  
+
   return totalUtilization / weekColumns.length;
 }
 
@@ -111,8 +114,17 @@ export function sortResourceAllocations(
   weekColumns: WeekColumn[],
   sortOption: SortOption
 ): AllocationWithResource[] {
+  // Defensive programming: handle undefined/null inputs
+  if (!allocations || !Array.isArray(allocations)) {
+    return [];
+  }
+
+  if (!weekColumns || !Array.isArray(weekColumns)) {
+    return allocations; // Return unsorted if weekColumns is invalid
+  }
+
   // Calculate sorting data for all allocations
-  const sortingData = allocations.map(allocation => 
+  const sortingData = allocations.map(allocation =>
     calculateResourceSortingData(allocation, weekColumns)
   );
   
@@ -191,9 +203,20 @@ export function getSortingStatistics(
   averageTotalHours: number;
   averageUtilization: number;
 } {
-  if (allocations.length === 0) {
+  // Defensive programming: handle undefined/null inputs
+  if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
     return {
       totalResources: 0,
+      underallocatedCount: 0,
+      overallocatedCount: 0,
+      averageTotalHours: 0,
+      averageUtilization: 0
+    };
+  }
+
+  if (!weekColumns || !Array.isArray(weekColumns)) {
+    return {
+      totalResources: allocations.length,
       underallocatedCount: 0,
       overallocatedCount: 0,
       averageTotalHours: 0,
