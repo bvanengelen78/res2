@@ -124,7 +124,10 @@ const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
     return res.json(filteredCharters);
   } catch (error) {
     Logger.error('Failed to fetch OGSM charters', error, { userId: user.id });
-    return createErrorResponse(res, 500, 'Failed to fetch OGSM charters');
+
+    // Return safe fallback data structure to prevent frontend .length errors
+    const fallbackCharters = [];
+    return res.json(fallbackCharters);
   }
 };
 

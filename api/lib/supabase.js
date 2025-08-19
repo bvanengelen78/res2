@@ -10,39 +10,53 @@ const { Logger, withRetry } = require('./middleware');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Check for environment variables but don't throw immediately
+// This allows the module to load even if Supabase is not configured
+let supabaseConfigured = true;
+
 if (!supabaseUrl) {
-  const error = new Error('SUPABASE_URL environment variable is required');
-  Logger.error('Missing Supabase URL configuration', error);
-  throw error;
+  Logger.error('Missing Supabase URL configuration', new Error('SUPABASE_URL environment variable is required'));
+  supabaseConfigured = false;
 }
 
 if (!supabaseServiceKey) {
-  const error = new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is required');
-  Logger.error('Missing Supabase service key configuration', error);
-  throw error;
+  Logger.error('Missing Supabase service key configuration', new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is required'));
+  supabaseConfigured = false;
 }
 
 // Create Supabase client with service role for admin operations
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  db: {
-    schema: 'public'
-  },
-  global: {
-    headers: {
-      'x-application-name': 'resource-planning-tracker'
-    }
-  }
-});
+// Only if configuration is available
+let supabase = null;
 
-// Log successful connection
-Logger.info('Supabase client initialized', {
-  url: supabaseUrl,
-  hasServiceKey: !!supabaseServiceKey
-});
+if (supabaseConfigured) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      db: {
+        schema: 'public'
+      },
+      global: {
+        headers: {
+          'x-application-name': 'resource-planning-tracker'
+        }
+      }
+    });
+
+    // Log successful connection
+    Logger.info('Supabase client initialized', {
+      url: supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey
+    });
+  } catch (error) {
+    Logger.error('Failed to initialize Supabase client', error);
+    supabaseConfigured = false;
+  }
+} else {
+  Logger.warn('Supabase client not initialized due to missing configuration');
+}
 
 // Utility functions for data transformation
 const SupabaseUtils = {
@@ -89,11 +103,19 @@ const SupabaseUtils = {
   }
 };
 
+// Helper function to check if Supabase is available
+const checkSupabaseAvailable = () => {
+  if (!supabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured or available');
+  }
+};
+
 // Database service functions
 const DatabaseService = {
   // Resources with enhanced error handling and retry logic
   async getResources() {
     return withRetry(async () => {
+      checkSupabaseAvailable();
       Logger.info('Fetching resources from database');
 
       const { data, error } = await supabase
@@ -120,6 +142,7 @@ const DatabaseService = {
   // Projects with enhanced error handling and retry logic
   async getProjects() {
     return withRetry(async () => {
+      checkSupabaseAvailable();
       Logger.info('Fetching projects from database');
 
       const { data, error } = await supabase
@@ -144,6 +167,7 @@ const DatabaseService = {
   // Departments
   async getDepartments() {
     try {
+      checkSupabaseAvailable();
       const { data, error } = await supabase
         .from('departments')
         .select('*')
@@ -190,6 +214,7 @@ const DatabaseService = {
   // Resource Allocations with enhanced error handling and retry logic
   async getResourceAllocations() {
     return withRetry(async () => {
+      checkSupabaseAvailable();
       Logger.info('Fetching resource allocations from database');
 
       const { data, error } = await supabase

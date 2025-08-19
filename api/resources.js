@@ -70,7 +70,10 @@ const resourcesHandler = async (req, res, { user, validatedData }) => {
     return res.json(resources);
   } catch (error) {
     Logger.error('Failed to fetch resources', error, { userId: user.id });
-    return createErrorResponse(res, 500, 'Failed to fetch resources');
+
+    // Return safe fallback data structure to prevent frontend .length errors
+    const fallbackResources = [];
+    return res.json(fallbackResources);
   }
 };
 

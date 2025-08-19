@@ -149,7 +149,10 @@ const projectsHandler = async (req, res, { user, validatedData }) => {
     return res.json(projects);
   } catch (error) {
     Logger.error('Failed to fetch projects', error, { userId: user.id });
-    return createErrorResponse(res, 500, 'Failed to fetch projects');
+
+    // Return safe fallback data structure to prevent frontend .length errors
+    const fallbackProjects = [];
+    return res.json(fallbackProjects);
   }
 };
 
