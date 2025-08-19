@@ -16,12 +16,15 @@ const ogsmChartersQuerySchema = z.object({
 // Main OGSM charters handler
 const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
   const { status, department } = validatedData;
-  
+
   Logger.info('Fetching OGSM charters', {
     userId: user.id,
     status,
     department
   });
+
+  // Always return a safe response, never throw errors to middleware
+  let charters = [];
 
   try {
     // For now, return mock OGSM charters data
@@ -105,30 +108,30 @@ const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
     ];
 
     // Apply filters
-    let filteredCharters = mockCharters;
+    charters = mockCharters;
 
     if (status !== 'all') {
-      filteredCharters = filteredCharters.filter(charter => charter.status === status);
+      charters = charters.filter(charter => charter.status === status);
     }
 
     if (department && department !== 'all') {
-      filteredCharters = filteredCharters.filter(charter => charter.department === department);
+      charters = charters.filter(charter => charter.department === department);
     }
 
-    Logger.info('OGSM charters fetched successfully', {
-      userId: user.id,
-      count: filteredCharters.length,
-      filters: { status, department }
-    });
-
-    return res.json(filteredCharters);
   } catch (error) {
     Logger.error('Failed to fetch OGSM charters', error, { userId: user.id });
-
-    // Return safe fallback data structure to prevent frontend .length errors
-    const fallbackCharters = [];
-    return res.json(fallbackCharters);
+    // Don't throw - just use empty array as fallback
+    charters = [];
   }
+
+  Logger.info('OGSM charters fetched successfully', {
+    userId: user.id,
+    count: charters.length,
+    filters: { status, department }
+  });
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(charters);
 };
 
 // Export with middleware

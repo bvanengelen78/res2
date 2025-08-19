@@ -25,9 +25,12 @@ const resourcesHandler = async (req, res, { user, validatedData }) => {
     search
   });
 
+  // Always return a safe response, never throw errors to middleware
+  let resources = [];
+
   try {
     // Fetch resources from Supabase (no fallback to mock data)
-    let resources = await DatabaseService.getResources();
+    resources = await DatabaseService.getResources();
 
     // Apply filters
     if (department && department !== 'all') {
@@ -67,14 +70,14 @@ const resourcesHandler = async (req, res, { user, validatedData }) => {
       filters: { department, status, search }
     });
 
-    return res.json(resources);
   } catch (error) {
     Logger.error('Failed to fetch resources', error, { userId: user.id });
-
-    // Return safe fallback data structure to prevent frontend .length errors
-    const fallbackResources = [];
-    return res.json(fallbackResources);
+    // Don't throw - just use empty array as fallback
+    resources = [];
   }
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(resources);
 };
 
 // Export with middleware

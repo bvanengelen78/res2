@@ -20,7 +20,7 @@ const allocationsQuerySchema = z.object({
 // Main allocations handler
 const allocationsHandler = async (req, res, { user, validatedData }) => {
   const { resourceId, projectId, startDate, endDate, status, department } = validatedData;
-  
+
   Logger.info('Fetching resource allocations', {
     userId: user.id,
     resourceId,
@@ -31,9 +31,12 @@ const allocationsHandler = async (req, res, { user, validatedData }) => {
     department
   });
 
+  // Always return a safe response, never throw errors to middleware
+  let allocations = [];
+
   try {
     // Fetch allocations from Supabase
-    let allocations = await DatabaseService.getResourceAllocations();
+    allocations = await DatabaseService.getResourceAllocations();
     
     // Apply filters
     if (resourceId) {
@@ -82,14 +85,14 @@ const allocationsHandler = async (req, res, { user, validatedData }) => {
       filters: { resourceId, projectId, status, department }
     });
 
-    return res.json(allocations);
   } catch (error) {
     Logger.error('Failed to fetch resource allocations', error, { userId: user.id });
-    
-    // Return safe fallback data structure
-    const fallbackAllocations = [];
-    return res.json(fallbackAllocations);
+    // Don't throw - just use empty array as fallback
+    allocations = [];
   }
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(allocations);
 };
 
 // Export with middleware

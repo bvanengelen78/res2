@@ -22,16 +22,19 @@ const departmentsQuerySchema = z.object({
 // Main departments handler
 const departmentsHandler = async (req, res, { user, validatedData }) => {
   const { includeResourceCount, includeProjectCount } = validatedData;
-  
+
   Logger.info('Fetching departments', {
     userId: user.id,
     includeResourceCount,
     includeProjectCount
   });
 
+  // Always return a safe response, never throw errors to middleware
+  let departments = [];
+
   try {
     // Fetch departments from Supabase
-    let departments = await DatabaseService.getDepartments();
+    departments = await DatabaseService.getDepartments();
     
     // Include resource and project counts if requested
     if (includeResourceCount || includeProjectCount) {
@@ -70,21 +73,20 @@ const departmentsHandler = async (req, res, { user, validatedData }) => {
       includeProjectCount
     });
 
-    return res.json(departments);
   } catch (error) {
     Logger.error('Failed to fetch departments', error, { userId: user.id });
-    
-    // Return safe fallback data structure
-    const fallbackDepartments = [
+    // Don't throw - use fallback departments
+    departments = [
       { id: 1, name: 'Engineering', description: 'Software development and technical operations' },
       { id: 2, name: 'Design', description: 'User experience and visual design' },
       { id: 3, name: 'Product', description: 'Product management and strategy' },
       { id: 4, name: 'Marketing', description: 'Marketing and communications' },
       { id: 5, name: 'Sales', description: 'Sales and business development' }
     ];
-    
-    return res.json(fallbackDepartments);
   }
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(departments);
 };
 
 // Export with middleware

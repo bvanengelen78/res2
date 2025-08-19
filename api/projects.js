@@ -64,9 +64,12 @@ const projectsHandler = async (req, res, { user, validatedData }) => {
     sortOrder
   });
 
+  // Always return a safe response, never throw errors to middleware
+  let projects = [];
+
   try {
     // Fetch projects from Supabase (no fallback to mock data)
-    let projects = await DatabaseService.getProjects();
+    projects = await DatabaseService.getProjects();
 
     // Apply filters
     if (department && department !== 'all') {
@@ -146,14 +149,14 @@ const projectsHandler = async (req, res, { user, validatedData }) => {
       sorting: { sortBy, sortOrder }
     });
 
-    return res.json(projects);
   } catch (error) {
     Logger.error('Failed to fetch projects', error, { userId: user.id });
-
-    // Return safe fallback data structure to prevent frontend .length errors
-    const fallbackProjects = [];
-    return res.json(fallbackProjects);
+    // Don't throw - just use empty array as fallback
+    projects = [];
   }
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(projects);
 };
 
 // Export with middleware

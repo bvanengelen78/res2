@@ -20,7 +20,7 @@ const timeEntriesQuerySchema = z.object({
 // Main time entries handler
 const timeEntriesHandler = async (req, res, { user, validatedData }) => {
   const { resourceId, projectId, startDate, endDate, status, limit } = validatedData;
-  
+
   Logger.info('Fetching time entries', {
     userId: user.id,
     resourceId,
@@ -30,6 +30,9 @@ const timeEntriesHandler = async (req, res, { user, validatedData }) => {
     status,
     limit
   });
+
+  // Always return a safe response, never throw errors to middleware
+  let timeEntries = [];
 
   try {
     // For now, return mock time entries data
@@ -60,44 +63,44 @@ const timeEntriesHandler = async (req, res, { user, validatedData }) => {
     ];
 
     // Apply filters
-    let filteredEntries = mockTimeEntries;
+    timeEntries = mockTimeEntries;
 
     if (resourceId) {
-      filteredEntries = filteredEntries.filter(entry => entry.resourceId === parseInt(resourceId));
+      timeEntries = timeEntries.filter(entry => entry.resourceId === parseInt(resourceId));
     }
 
     if (projectId) {
-      filteredEntries = filteredEntries.filter(entry => entry.projectId === parseInt(projectId));
+      timeEntries = timeEntries.filter(entry => entry.projectId === parseInt(projectId));
     }
 
     if (status !== 'all') {
-      filteredEntries = filteredEntries.filter(entry => entry.status === status);
+      timeEntries = timeEntries.filter(entry => entry.status === status);
     }
 
     if (startDate && endDate) {
-      filteredEntries = filteredEntries.filter(entry => {
+      timeEntries = timeEntries.filter(entry => {
         const entryDate = new Date(entry.date);
         return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
       });
     }
 
     // Apply limit
-    filteredEntries = filteredEntries.slice(0, limit);
+    timeEntries = timeEntries.slice(0, limit);
 
-    Logger.info('Time entries fetched successfully', {
-      userId: user.id,
-      count: filteredEntries.length,
-      filters: { resourceId, projectId, status }
-    });
-
-    return res.json(filteredEntries);
   } catch (error) {
     Logger.error('Failed to fetch time entries', error, { userId: user.id });
-
-    // Return safe fallback data structure to prevent frontend .length errors
-    const fallbackTimeEntries = [];
-    return res.json(fallbackTimeEntries);
+    // Don't throw - just use empty array as fallback
+    timeEntries = [];
   }
+
+  Logger.info('Time entries fetched successfully', {
+    userId: user.id,
+    count: timeEntries.length,
+    filters: { resourceId, projectId, status }
+  });
+
+  // Always return a valid array (never throw errors to middleware)
+  return res.json(timeEntries);
 };
 
 // Export with middleware
