@@ -215,8 +215,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
     } catch (error) {
+      console.error('[LOGIN] Unexpected error in login endpoint:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
       const message = error instanceof Error ? error.message : "Login failed";
-      res.status(401).json({ message });
+      res.status(500).json({
+        error: true,
+        message: "Internal server error",
+        timestamp: new Date().toISOString()
+      });
     }
   });
 

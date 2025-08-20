@@ -43,7 +43,28 @@ export function LoginForm({}: LoginFormProps) {
       setError(null);
       await login(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      console.error('[LOGIN_FORM] Login error:', err);
+
+      // Provide user-friendly error messages
+      let errorMessage = "Login failed";
+
+      if (err instanceof Error) {
+        const message = err.message.toLowerCase();
+
+        if (message.includes('500') || message.includes('internal server error')) {
+          errorMessage = "Server temporarily unavailable. Please try again in a moment.";
+        } else if (message.includes('401') || message.includes('unauthorized') || message.includes('invalid credentials')) {
+          errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        } else if (message.includes('400') || message.includes('bad request')) {
+          errorMessage = "Please check your email and password format.";
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      setError(errorMessage);
     }
   };
 
