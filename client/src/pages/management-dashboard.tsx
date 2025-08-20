@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -183,36 +184,28 @@ export default function ManagementDashboard() {
   const { data: activeProjectsData, isLoading: activeProjectsLoading } = useQuery({
     queryKey: ['active-projects-trend'],
     queryFn: async () => {
-      const response = await fetch('/api/management-dashboard/active-projects-trend');
-      if (!response.ok) throw new Error('Failed to fetch active projects trend');
-      return response.json() as KPIResponse;
+      return await apiRequest('/api/management-dashboard/active-projects-trend') as KPIResponse;
     }
   });
 
   const { data: underUtilisedData, isLoading: underUtilisedLoading } = useQuery({
     queryKey: ['under-utilised-resources'],
     queryFn: async () => {
-      const response = await fetch('/api/management-dashboard/under-utilised-resources');
-      if (!response.ok) throw new Error('Failed to fetch under-utilised resources');
-      return response.json() as KPIResponse;
+      return await apiRequest('/api/management-dashboard/under-utilised-resources') as KPIResponse;
     }
   });
 
   const { data: overUtilisedData, isLoading: overUtilisedLoading } = useQuery({
     queryKey: ['over-utilised-resources'],
     queryFn: async () => {
-      const response = await fetch('/api/management-dashboard/over-utilised-resources');
-      if (!response.ok) throw new Error('Failed to fetch over-utilised resources');
-      return response.json() as KPIResponse;
+      return await apiRequest('/api/management-dashboard/over-utilised-resources') as KPIResponse;
     }
   });
 
   const { data: utilisationRateData, isLoading: utilisationRateLoading } = useQuery({
     queryKey: ['utilisation-rate-trend'],
     queryFn: async () => {
-      const response = await fetch('/api/management-dashboard/utilisation-rate-trend');
-      if (!response.ok) throw new Error('Failed to fetch utilisation rate trend');
-      return response.json() as KPIResponse;
+      return await apiRequest('/api/management-dashboard/utilisation-rate-trend') as KPIResponse;
     }
   });
 

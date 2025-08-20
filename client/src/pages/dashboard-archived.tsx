@@ -3,6 +3,7 @@
 // Preserved for reference and potential rollback
 
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { KPICards } from "@/components/kpi-cards";
 import { EnhancedCapacityAlerts } from "@/components/enhanced-capacity-alerts";
 import { HoursAllocationVsActual } from "@/components/hours-allocation-vs-actual";
@@ -94,9 +95,7 @@ export default function DashboardArchived() {
       const params = new URLSearchParams();
       if (departmentFilter !== 'all') params.append('department', departmentFilter);
 
-      const response = await fetch(`/api/dashboard/kpis?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch KPIs');
-      return response.json();
+      return await apiRequest(`/api/dashboard/kpis?${params}`);
     },
     staleTime: 0, // Always fetch fresh data
     refetchOnMount: true, // Refetch when component mounts
@@ -110,9 +109,7 @@ export default function DashboardArchived() {
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/alerts?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch alerts');
-      return response.json();
+      return await apiRequest(`/api/dashboard/alerts?${params}`);
     },
     staleTime: 0, // Always fetch fresh data
     refetchOnMount: true, // Refetch when component mounts
@@ -134,9 +131,7 @@ export default function DashboardArchived() {
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/timeline?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch timeline data');
-      return response.json();
+      return await apiRequest(`/api/dashboard/timeline?${params}`);
     },
     staleTime: 0, // Always fetch fresh data
     refetchOnMount: true, // Refetch when component mounts
