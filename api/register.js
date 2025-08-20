@@ -1,5 +1,6 @@
 // User Registration Endpoint
 // Enterprise-grade user registration with database integration and security
+// Deployed: 2025-08-20
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
