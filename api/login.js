@@ -73,9 +73,11 @@ const loginHandler = async (req, res, { validatedData }) => {
   }
 };
 
-// Export with middleware
+// Export with middleware (fixed validation configuration)
 module.exports = withMiddleware(loginHandler, {
   requireAuth: false,
   allowedMethods: ['POST'],
-  validateSchema: loginSchema
+  validateInput: {
+    POST: loginSchema
+  }
 });
