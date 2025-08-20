@@ -236,6 +236,272 @@ const DatabaseService = {
     });
   },
 
+  // Time Entries with enhanced error handling and retry logic
+  async getTimeEntries() {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching time entries from database');
+
+      const { data, error } = await supabase
+        .from('time_entries')
+        .select('*')
+        .order('week_start_date', { ascending: false });
+
+      if (error) {
+        Logger.error('Failed to fetch time entries', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const timeEntries = (data || []).map(entry =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(entry), ['weekStartDate', 'createdAt', 'updatedAt'])
+      );
+
+      Logger.info('Successfully fetched time entries', { count: timeEntries.length });
+      return timeEntries;
+    });
+  },
+
+  // Optimized period-aware resource allocations
+  async getResourceAllocationsByPeriod(startDate, endDate) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching period-filtered resource allocations from database', {
+        startDate,
+        endDate
+      });
+
+      let query = supabase
+        .from('resource_allocations')
+        .select('*');
+
+      // Apply date filtering at database level
+      if (startDate && endDate) {
+        // Get allocations that overlap with the specified period
+        query = query
+          .lte('start_date', endDate)
+          .gte('end_date', startDate);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Failed to fetch period-filtered resource allocations', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const allocations = (data || []).map(allocation =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(allocation), ['createdAt', 'updatedAt', 'startDate', 'endDate'])
+      );
+
+      Logger.info('Successfully fetched period-filtered resource allocations', {
+        count: allocations.length,
+        period: startDate && endDate ? `${startDate} to ${endDate}` : 'all time'
+      });
+      return allocations;
+    });
+  },
+
+  // Optimized period-aware projects
+  async getProjectsByPeriod(startDate, endDate) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching period-filtered projects from database', {
+        startDate,
+        endDate
+      });
+
+      let query = supabase
+        .from('projects')
+        .select('*');
+
+      // Apply date filtering at database level for active projects in period
+      if (startDate && endDate) {
+        query = query
+          .eq('status', 'active')
+          .lte('start_date', endDate)
+          .gte('end_date', startDate);
+      } else {
+        query = query.eq('status', 'active');
+      }
+
+      query = query.order('name', { ascending: true });
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Failed to fetch period-filtered projects', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const projects = (data || []).map(project =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(project), ['createdAt', 'updatedAt', 'startDate', 'endDate'])
+      );
+
+      Logger.info('Successfully fetched period-filtered projects', {
+        count: projects.length,
+        period: startDate && endDate ? `${startDate} to ${endDate}` : 'all time'
+      });
+      return projects;
+    });
+  },
+
+  // Optimized period-aware time entries
+  async getTimeEntriesByPeriod(startDate, endDate) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching period-filtered time entries from database', {
+        startDate,
+        endDate
+      });
+
+      let query = supabase
+        .from('time_entries')
+        .select('*');
+
+      // Apply date filtering at database level
+      if (startDate && endDate) {
+        query = query
+          .gte('week_start_date', startDate)
+          .lte('week_start_date', endDate);
+      }
+
+      query = query.order('week_start_date', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Failed to fetch period-filtered time entries', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const timeEntries = (data || []).map(entry =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(entry), ['weekStartDate', 'createdAt', 'updatedAt'])
+      );
+
+      Logger.info('Successfully fetched period-filtered time entries', {
+        count: timeEntries.length,
+        period: startDate && endDate ? `${startDate} to ${endDate}` : 'all time'
+      });
+      return timeEntries;
+    });
+  },
+
+  // Historical KPIs management
+  async saveHistoricalKpi(kpiData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Saving historical KPI snapshot', {
+        snapshotDate: kpiData.snapshotDate,
+        period: `${kpiData.periodStartDate} to ${kpiData.periodEndDate}`,
+        department: kpiData.department || 'all'
+      });
+
+      const { data, error } = await supabase
+        .from('historical_kpis')
+        .insert(kpiData)
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to save historical KPI snapshot', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const historicalKpi = SupabaseUtils.parseDates(
+        SupabaseUtils.toCamelCase(data),
+        ['snapshotDate', 'periodStartDate', 'periodEndDate', 'createdAt', 'updatedAt']
+      );
+
+      Logger.info('Successfully saved historical KPI snapshot', { id: historicalKpi.id });
+      return historicalKpi;
+    });
+  },
+
+  async getHistoricalKpis(filters = {}) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching historical KPI snapshots', filters);
+
+      let query = supabase
+        .from('historical_kpis')
+        .select('*');
+
+      // Apply filters
+      if (filters.startDate) {
+        query = query.gte('snapshot_date', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('snapshot_date', filters.endDate);
+      }
+      if (filters.department) {
+        query = query.eq('department', filters.department);
+      }
+
+      query = query.order('snapshot_date', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Failed to fetch historical KPI snapshots', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const historicalKpis = (data || []).map(kpi =>
+        SupabaseUtils.parseDates(
+          SupabaseUtils.toCamelCase(kpi),
+          ['snapshotDate', 'periodStartDate', 'periodEndDate', 'createdAt', 'updatedAt']
+        )
+      );
+
+      Logger.info('Successfully fetched historical KPI snapshots', { count: historicalKpis.length });
+      return historicalKpis;
+    });
+  },
+
+  async getLatestHistoricalKpi(department = null) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching latest historical KPI snapshot', { department });
+
+      let query = supabase
+        .from('historical_kpis')
+        .select('*');
+
+      if (department) {
+        query = query.eq('department', department);
+      } else {
+        query = query.is('department', null);
+      }
+
+      query = query.order('snapshot_date', { ascending: false }).limit(1);
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Failed to fetch latest historical KPI snapshot', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      if (!data || data.length === 0) {
+        Logger.info('No historical KPI snapshots found');
+        return null;
+      }
+
+      const historicalKpi = SupabaseUtils.parseDates(
+        SupabaseUtils.toCamelCase(data[0]),
+        ['snapshotDate', 'periodStartDate', 'periodEndDate', 'createdAt', 'updatedAt']
+      );
+
+      Logger.info('Successfully fetched latest historical KPI snapshot', {
+        id: historicalKpi.id,
+        snapshotDate: historicalKpi.snapshotDate
+      });
+      return historicalKpi;
+    });
+  },
+
   // Health check
   async checkHealth() {
     try {

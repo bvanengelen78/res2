@@ -151,6 +151,32 @@ export const weeklySubmissions = pgTable("weekly_submissions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Historical KPI snapshots for trend analysis
+export const historicalKpis = pgTable("historical_kpis", {
+  id: serial("id").primaryKey(),
+  snapshotDate: date("snapshot_date").notNull(), // Date of the KPI snapshot
+  periodStartDate: date("period_start_date").notNull(), // Start of the period being measured
+  periodEndDate: date("period_end_date").notNull(), // End of the period being measured
+  department: text("department"), // Department filter applied (null for all departments)
+
+  // Core KPI metrics
+  activeProjects: integer("active_projects").notNull().default(0),
+  totalProjects: integer("total_projects").notNull().default(0),
+  availableResources: integer("available_resources").notNull().default(0),
+  totalResources: integer("total_resources").notNull().default(0),
+  utilization: decimal("utilization", { precision: 5, scale: 2 }).notNull().default("0.00"),
+  conflicts: integer("conflicts").notNull().default(0),
+
+  // Gamified metrics
+  forecastAccuracy: decimal("forecast_accuracy", { precision: 5, scale: 2 }).default("0.00"),
+  resourceHealthScore: integer("resource_health_score").default(0),
+  capacityConflictsCount: integer("capacity_conflicts_count").default(0),
+
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Configuration tables
 export const ogsmCharters = pgTable("ogsm_charters", {
   id: serial("id").primaryKey(),
@@ -583,6 +609,12 @@ export const insertEffortSummaryNoteSchema = createInsertSchema(effortSummaryNot
   updatedAt: true,
 });
 
+export const insertHistoricalKpiSchema = createInsertSchema(historicalKpis).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -746,6 +778,9 @@ export type InsertUserProjectFavorite = z.infer<typeof insertUserProjectFavorite
 
 export type EffortSummaryNote = typeof effortSummaryNotes.$inferSelect;
 export type InsertEffortSummaryNote = z.infer<typeof insertEffortSummaryNoteSchema>;
+
+export type HistoricalKpi = typeof historicalKpis.$inferSelect;
+export type InsertHistoricalKpi = z.infer<typeof insertHistoricalKpiSchema>;
 
 // Extended types with relations
 export type ResourceWithAllocations = Resource & {

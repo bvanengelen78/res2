@@ -1,3 +1,31 @@
 {
-  "type": "commonjs"
+  "name": "resource-planning-api",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:kpi": "jest tests/kpi-calculations.test.js",
+    "test:integration": "jest tests/kpi-integration.test.js"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "dashboard/**/*.js",
+      "lib/**/*.js",
+      "!**/node_modules/**",
+      "!**/tests/**"
+    ]
+  }
 }

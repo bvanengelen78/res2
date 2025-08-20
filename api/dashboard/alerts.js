@@ -7,6 +7,9 @@ const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { DatabaseService } = require('../lib/supabase');
 
+// Standardized effective capacity calculation constant (matches frontend)
+const DEFAULT_NON_PROJECT_HOURS = 8; // Meetings, admin, etc.
+
 // Input validation schema
 const alertsQuerySchema = z.object({
   startDate: z.string().optional(),
@@ -18,11 +21,16 @@ const alertsQuerySchema = z.object({
 // Calculate capacity alerts from real Supabase data
 const calculateCapacityAlerts = async (filters = {}) => {
   try {
-    // Fetch real data from Supabase
+    // Fetch real data from Supabase with optimized period filtering
+    const { startDate, endDate, department } = filters;
     const [resources, projects, allocations] = await Promise.all([
       DatabaseService.getResources(),
-      DatabaseService.getProjects(),
-      DatabaseService.getResourceAllocations()
+      startDate && endDate ?
+        DatabaseService.getProjectsByPeriod(startDate, endDate) :
+        DatabaseService.getProjects(),
+      startDate && endDate ?
+        DatabaseService.getResourceAllocationsByPeriod(startDate, endDate) :
+        DatabaseService.getResourceAllocations()
     ]);
 
     Logger.info('Calculating capacity alerts from real data', {
@@ -41,11 +49,14 @@ const calculateCapacityAlerts = async (filters = {}) => {
         })
       : resources;
 
-    // Calculate resource utilization and identify conflicts
+    // Calculate resource utilization and identify conflicts using effective capacity
     const resourceUtilization = filteredResources.map(resource => {
       const resourceAllocations = allocations.filter(a => a.resourceId === resource.id);
       const totalHours = resourceAllocations.reduce((sum, a) => sum + parseFloat(a.allocatedHours || 0), 0);
-      const utilization = resource.weeklyCapacity > 0 ? (totalHours / parseFloat(resource.weeklyCapacity)) * 100 : 0;
+
+      const weeklyCapacity = parseFloat(resource.weeklyCapacity) || 40;
+      const effectiveCapacity = Math.max(0, weeklyCapacity - DEFAULT_NON_PROJECT_HOURS);
+      const utilization = effectiveCapacity > 0 ? (totalHours / effectiveCapacity) * 100 : 0;
       
       // Get conflicting projects
       const conflictingProjects = resourceAllocations

@@ -36,7 +36,6 @@ async function handleGetKPIs(req, res) {
       totalResources: 10,
       utilization: 85.5, // Changed from utilizationRate to match frontend
       conflicts: 2, // Added conflicts that frontend expects
-      budgetUtilization: 72.3,
       // Proper trendData structure with arrays for sparklines
       trendData: {
         activeProjects: {
@@ -77,7 +76,6 @@ async function handleGetKPIs(req, res) {
       totalResources: 0,
       utilization: 0,
       conflicts: 0,
-      budgetUtilization: 0,
       trendData: {
         activeProjects: {
           current_value: 0,
