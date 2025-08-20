@@ -7,6 +7,7 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  componentName?: string;
 }
 
 interface State {
@@ -25,7 +26,27 @@ export class DashboardErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Dashboard Error Boundary caught an error:', error, errorInfo);
+    console.error(`🚨 [ERROR_BOUNDARY] Error in ${this.props.componentName || 'Dashboard Component'}:`, error, errorInfo);
+
+    // Log specific details about the error for production debugging
+    if (error.message.includes('forEach')) {
+      console.error('🚨 [FOREACH_ERROR] Detected forEach error - likely trying to call forEach on non-array:', {
+        componentName: this.props.componentName,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        componentStack: errorInfo.componentStack
+      });
+    }
+
+    if (error.message.includes('length')) {
+      console.error('🚨 [LENGTH_ERROR] Detected length error - likely accessing length on undefined:', {
+        componentName: this.props.componentName,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        componentStack: errorInfo.componentStack
+      });
+    }
+
     this.props.onError?.(error, errorInfo);
   }
 
@@ -44,7 +65,7 @@ export class DashboardErrorBoundary extends Component<Props, State> {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-700">
               <AlertTriangle className="h-5 w-5" />
-              Something went wrong
+              Component Error: {this.props.componentName || 'Dashboard Component'}
             </CardTitle>
           </CardHeader>
           <CardContent>

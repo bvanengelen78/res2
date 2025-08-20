@@ -238,26 +238,30 @@ export function HoursAllocationVsActual({ className, periodFilter = 'currentWeek
       }
     });
 
-    // Calculate variance and status
-    dataMap.forEach((data) => {
-      data.variance = data.actualHours - data.allocatedHours;
-      data.variancePercentage = data.allocatedHours > 0 
-        ? (data.variance / data.allocatedHours) * 100 
-        : 0;
-      data.utilization = data.capacity > 0 
-        ? (data.actualHours / data.capacity) * 100 
-        : 0;
-      
-      if (Math.abs(data.variancePercentage) <= 10) {
-        data.status = 'on-track';
-      } else if (data.variance > 0) {
-        data.status = 'over';
-      } else {
-        data.status = 'under';
-      }
-    });
+    // Calculate variance and status - Add defensive check for Map
+    if (dataMap && typeof dataMap.forEach === 'function') {
+      dataMap.forEach((data) => {
+        data.variance = data.actualHours - data.allocatedHours;
+        data.variancePercentage = data.allocatedHours > 0
+          ? (data.variance / data.allocatedHours) * 100
+          : 0;
+        data.utilization = data.capacity > 0
+          ? (data.actualHours / data.capacity) * 100
+          : 0;
 
-    return Array.from(dataMap.values());
+        if (Math.abs(data.variancePercentage) <= 10) {
+          data.status = 'on-track';
+        } else if (data.variance > 0) {
+          data.status = 'over';
+        } else {
+          data.status = 'under';
+        }
+      });
+    } else {
+      console.warn('[HoursAllocationVsActual] dataMap is not a valid Map object:', dataMap);
+    }
+
+    return dataMap && typeof dataMap.values === 'function' ? Array.from(dataMap.values()) : [];
   }, [allocations, timeEntries, resources, projects, periodFilter, dateRange]);
 
   // Debug logging for data after all variables are initialized
