@@ -593,6 +593,339 @@ const DatabaseService = {
     });
   },
 
+  // Settings API - Departments management
+  async getDepartments() {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching departments from database');
+
+      const { data, error } = await supabase
+        .from('departments')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        Logger.error('Failed to fetch departments', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const departments = (data || []).map(dept =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(dept), ['createdAt', 'updatedAt'])
+      );
+
+      Logger.info('Successfully fetched departments', { count: departments.length });
+      return departments;
+    });
+  },
+
+  async getDepartment(departmentId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching department by ID', { departmentId });
+
+      const { data, error } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('id', departmentId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Logger.info('Department not found', { departmentId });
+          return null;
+        }
+        Logger.error('Failed to fetch department', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const department = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully fetched department', { departmentId });
+      return department;
+    });
+  },
+
+  async createDepartment(departmentData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating department', { name: departmentData.name });
+
+      const { data, error } = await supabase
+        .from('departments')
+        .insert({
+          name: departmentData.name,
+          description: departmentData.description || null,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to create department', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const department = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully created department', { departmentId: department.id });
+      return department;
+    });
+  },
+
+  async updateDepartment(departmentId, updateData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Updating department', { departmentId, updateData });
+
+      const updateFields = {};
+      if (updateData.name !== undefined) updateFields.name = updateData.name;
+      if (updateData.description !== undefined) updateFields.description = updateData.description;
+      if (updateData.isActive !== undefined) updateFields.is_active = updateData.isActive;
+
+      const { data, error } = await supabase
+        .from('departments')
+        .update(updateFields)
+        .eq('id', departmentId)
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to update department', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const department = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully updated department', { departmentId });
+      return department;
+    });
+  },
+
+  async deleteDepartment(departmentId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Deleting department', { departmentId });
+
+      // Soft delete by setting is_active to false
+      const { error } = await supabase
+        .from('departments')
+        .update({ is_active: false })
+        .eq('id', departmentId);
+
+      if (error) {
+        Logger.error('Failed to delete department', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      Logger.info('Successfully deleted department', { departmentId });
+      return true;
+    });
+  },
+
+  // Settings API - OGSM Charters management
+  async getOgsmCharters() {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching OGSM charters from database');
+
+      const { data, error } = await supabase
+        .from('ogsm_charters')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        Logger.error('Failed to fetch OGSM charters', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const charters = (data || []).map(charter =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(charter), ['createdAt', 'updatedAt'])
+      );
+
+      Logger.info('Successfully fetched OGSM charters', { count: charters.length });
+      return charters;
+    });
+  },
+
+  async getOgsmCharter(charterId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching OGSM charter by ID', { charterId });
+
+      const { data, error } = await supabase
+        .from('ogsm_charters')
+        .select('*')
+        .eq('id', charterId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Logger.info('OGSM charter not found', { charterId });
+          return null;
+        }
+        Logger.error('Failed to fetch OGSM charter', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const charter = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully fetched OGSM charter', { charterId });
+      return charter;
+    });
+  },
+
+  async createOgsmCharter(charterData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating OGSM charter', { name: charterData.name });
+
+      const { data, error } = await supabase
+        .from('ogsm_charters')
+        .insert({
+          name: charterData.name,
+          description: charterData.description || null,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to create OGSM charter', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const charter = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully created OGSM charter', { charterId: charter.id });
+      return charter;
+    });
+  },
+
+  async updateOgsmCharter(charterId, updateData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Updating OGSM charter', { charterId, updateData });
+
+      const updateFields = {};
+      if (updateData.name !== undefined) updateFields.name = updateData.name;
+      if (updateData.description !== undefined) updateFields.description = updateData.description;
+      if (updateData.isActive !== undefined) updateFields.is_active = updateData.isActive;
+
+      const { data, error } = await supabase
+        .from('ogsm_charters')
+        .update(updateFields)
+        .eq('id', charterId)
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to update OGSM charter', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const charter = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully updated OGSM charter', { charterId });
+      return charter;
+    });
+  },
+
+  async deleteOgsmCharter(charterId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Deleting OGSM charter', { charterId });
+
+      // Soft delete by setting is_active to false
+      const { error } = await supabase
+        .from('ogsm_charters')
+        .update({ is_active: false })
+        .eq('id', charterId);
+
+      if (error) {
+        Logger.error('Failed to delete OGSM charter', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      Logger.info('Successfully deleted OGSM charter', { charterId });
+      return true;
+    });
+  },
+
+  // Settings API - Notification Settings management
+  async getNotificationSettings() {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching notification settings from database');
+
+      const { data, error } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .order('type', { ascending: true });
+
+      if (error) {
+        Logger.error('Failed to fetch notification settings', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const settings = (data || []).map(setting =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(setting), ['createdAt', 'updatedAt'])
+      );
+
+      Logger.info('Successfully fetched notification settings', { count: settings.length });
+      return settings;
+    });
+  },
+
+  async getNotificationSetting(settingId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching notification setting by ID', { settingId });
+
+      const { data, error } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('id', settingId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Logger.info('Notification setting not found', { settingId });
+          return null;
+        }
+        Logger.error('Failed to fetch notification setting', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const setting = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully fetched notification setting', { settingId });
+      return setting;
+    });
+  },
+
+  async updateNotificationSetting(settingId, updateData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Updating notification setting', { settingId, updateData });
+
+      const updateFields = {};
+      if (updateData.isEnabled !== undefined) updateFields.is_enabled = updateData.isEnabled;
+      if (updateData.reminderDay !== undefined) updateFields.reminder_day = updateData.reminderDay;
+      if (updateData.reminderTime !== undefined) updateFields.reminder_time = updateData.reminderTime;
+      if (updateData.emailSubject !== undefined) updateFields.email_subject = updateData.emailSubject;
+      if (updateData.emailTemplate !== undefined) updateFields.email_template = updateData.emailTemplate;
+
+      const { data, error } = await supabase
+        .from('notification_settings')
+        .update(updateFields)
+        .eq('id', settingId)
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to update notification setting', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const setting = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully updated notification setting', { settingId });
+      return setting;
+    });
+  },
+
   // Health check
   async checkHealth() {
     try {
