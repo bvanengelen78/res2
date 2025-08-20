@@ -69,9 +69,16 @@ const getProjectWithAllocations = async (projectId) => {
   try {
     // Fetch project from Supabase
     const projects = await DatabaseService.getProjects();
+
+    if (!projects || !Array.isArray(projects)) {
+      Logger.warn('Invalid projects data received from database', { projectId, projectsType: typeof projects });
+      return null;
+    }
+
     const project = projects.find(p => p.id === projectId);
-    
+
     if (!project) {
+      Logger.info('Project not found in database', { projectId, availableProjects: projects.length });
       return null;
     }
     
@@ -80,7 +87,17 @@ const getProjectWithAllocations = async (projectId) => {
       DatabaseService.getResourceAllocations(),
       DatabaseService.getResources()
     ]);
-    
+
+    if (!allocations || !Array.isArray(allocations)) {
+      Logger.warn('Invalid allocations data received from database', { projectId, allocationsType: typeof allocations });
+      return { ...project, allocations: [], metrics: null };
+    }
+
+    if (!resources || !Array.isArray(resources)) {
+      Logger.warn('Invalid resources data received from database', { projectId, resourcesType: typeof resources });
+      return { ...project, allocations: [], metrics: null };
+    }
+
     const projectAllocations = allocations.filter(allocation => allocation.projectId === projectId);
     
     // Enrich allocations with resource information
@@ -116,9 +133,14 @@ const projectDetailHandler = async (req, res, { user, validatedData }) => {
   
   // Extract project ID from URL path
   const projectId = parseInt(req.query.id);
-  
-  if (isNaN(projectId)) {
-    Logger.warn('Invalid project ID provided', { projectId: req.query.id, userId: user.id });
+
+  if (isNaN(projectId) || projectId <= 0) {
+    Logger.warn('Invalid project ID provided', {
+      projectId: req.query.id,
+      parsedId: projectId,
+      userId: user.id,
+      url: req.url
+    });
     return res.status(400).json({ message: 'Invalid project ID provided' });
   }
   
