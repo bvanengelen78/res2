@@ -28,7 +28,9 @@ const calculateCapacityAlerts = async (filters = {}) => {
     Logger.info('Calculating capacity alerts from real data', {
       resourcesCount: resources.length,
       projectsCount: projects.length,
-      allocationsCount: allocations.length
+      allocationsCount: allocations.length,
+      sampleResources: resources.slice(0, 2).map(r => ({ id: r.id, name: r.name, weeklyCapacity: r.weeklyCapacity })),
+      sampleAllocations: allocations.slice(0, 3).map(a => ({ id: a.id, resourceId: a.resourceId, allocatedHours: a.allocatedHours }))
     });
 
     // Apply department filter to resources if specified
@@ -222,7 +224,13 @@ const calculateCapacityAlerts = async (filters = {}) => {
       critical: criticalAlerts.length,
       warning: warningAlerts.length,
       info: infoAlerts.length,
-      department: filters.department
+      department: filters.department,
+      resourceUtilizationSample: resourceUtilization.slice(0, 3).map(ru => ({
+        name: ru.resource.name,
+        utilization: ru.utilization,
+        totalHours: ru.totalHours,
+        capacity: ru.resource.weeklyCapacity
+      }))
     });
 
     return alertsData;
