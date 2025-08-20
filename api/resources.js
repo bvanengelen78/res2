@@ -1,3 +1,8 @@
+// Load environment variables for development
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
+
 const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 const { DatabaseService } = require('./lib/supabase');
