@@ -97,7 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           rememberMe: credentials.rememberMe
         });
 
-        const response = await apiRequest('/api/login', {
+        // Temporarily use working debug endpoint until main login is fixed
+        const response = await apiRequest('/api/login-debug', {
           method: 'POST',
           body: JSON.stringify(credentials),
         });
