@@ -84,7 +84,14 @@ const authenticate = async (req) => {
     });
 
     // Get real user data from database instead of using token data
-    const { DatabaseService } = require('./supabase');
+    // Use lazy loading to avoid circular dependency
+    let DatabaseService;
+    try {
+      DatabaseService = require('./supabase').DatabaseService;
+    } catch (error) {
+      Logger.error('Failed to load DatabaseService', error);
+      // Continue without database validation for development
+    }
 
     // Handle both token formats and validate userId
     // 1. Express.js server format: { userId: 123, ... }
@@ -124,6 +131,11 @@ const authenticate = async (req) => {
 
     // Try to query real user data with roles and permissions
     try {
+      if (!DatabaseService) {
+        Logger.warn('DatabaseService not available, falling back to token data');
+        throw new Error('DatabaseService not available');
+      }
+
       Logger.info('Attempting database query for user', { userId, userIdType: typeof userId });
 
       const userWithRoles = await DatabaseService.getUserWithRoles(userId);

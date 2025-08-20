@@ -4,7 +4,61 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { createClient } = require('@supabase/supabase-js');
-const { Logger, withRetry } = require('./middleware');
+
+// Standalone logger to avoid circular dependency with middleware
+const Logger = {
+  info: (message, context = {}) => {
+    console.log(JSON.stringify({
+      level: 'info',
+      message,
+      timestamp: new Date().toISOString(),
+      ...context
+    }));
+  },
+
+  error: (message, error = null, context = {}) => {
+    console.error(JSON.stringify({
+      level: 'error',
+      message,
+      error: error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : null,
+      timestamp: new Date().toISOString(),
+      ...context
+    }));
+  },
+
+  warn: (message, context = {}) => {
+    console.warn(JSON.stringify({
+      level: 'warn',
+      message,
+      timestamp: new Date().toISOString(),
+      ...context
+    }));
+  }
+};
+
+// Database retry utility (moved from middleware to avoid circular dependency)
+const withRetry = async (operation, maxRetries = 3, delay = 1000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      Logger.warn(`Database operation failed, retrying (${attempt}/${maxRetries})`, {
+        error: error.message,
+        attempt
+      });
+
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
+    }
+  }
+};
 
 // Supabase configuration for both development and production
 const supabaseUrl = process.env.SUPABASE_URL;
