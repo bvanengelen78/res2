@@ -14,7 +14,7 @@ const timeEntriesQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   status: z.enum(['draft', 'submitted', 'approved', 'all']).optional().default('all'),
-  limit: z.string().transform(val => parseInt(val)).optional().default(100)
+  limit: z.string().transform(val => parseInt(val)).optional().default("100")
 });
 
 // Main time entries handler

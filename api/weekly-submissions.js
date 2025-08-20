@@ -14,7 +14,7 @@ const weeklySubmissionsQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   department: z.string().optional(),
-  limit: z.string().transform(val => parseInt(val)).optional().default(100)
+  limit: z.string().transform(val => parseInt(val)).optional().default("100")
 });
 
 // Get weekly submissions with filtering

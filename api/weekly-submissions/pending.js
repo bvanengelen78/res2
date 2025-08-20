@@ -10,8 +10,8 @@ const { DatabaseService } = require('../lib/supabase');
 // Input validation schema for pending submissions query
 const pendingSubmissionsQuerySchema = z.object({
   department: z.string().optional(),
-  weeksBack: z.string().transform(val => parseInt(val)).optional().default(4),
-  limit: z.string().transform(val => parseInt(val)).optional().default(100)
+  weeksBack: z.string().transform(val => parseInt(val)).optional().default("4"),
+  limit: z.string().transform(val => parseInt(val)).optional().default("100")
 });
 
 // Get pending weekly submissions
