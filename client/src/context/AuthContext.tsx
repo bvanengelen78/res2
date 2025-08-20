@@ -97,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           rememberMe: credentials.rememberMe
         });
 
-        // Temporarily use working debug endpoint until main login is fixed
-        const response = await apiRequest('/api/login-debug', {
+        // Use enterprise authentication endpoint with database integration
+        const response = await apiRequest('/api/login-enterprise-simple', {
           method: 'POST',
           body: JSON.stringify(credentials),
         });

@@ -67,7 +67,13 @@ async function runTests() {
   
   // Test 5: Main Login
   await testEndpoint('/api/login', 'POST', credentials);
-  
+
+  // Test 6: Production Login
+  await testEndpoint('/api/login-production', 'POST', credentials);
+
+  // Test 7: Enterprise Login
+  await testEndpoint('/api/login-enterprise', 'POST', credentials);
+
   console.log('\n🏁 Tests completed');
 }
 
