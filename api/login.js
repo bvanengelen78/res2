@@ -16,24 +16,23 @@ const loginSchema = z.object({
 const loginHandler = async (req, res, { validatedData }) => {
   const { email, password, rememberMe } = validatedData;
 
-  Logger.info('Login attempt', { email, rememberMe });
+  Logger.info('Login attempt', {
+    email,
+    rememberMe,
+    hasJwtSecret: !!JWT_SECRET,
+    jwtSecretLength: JWT_SECRET.length,
+    nodeEnv: process.env.NODE_ENV
+  });
 
   try {
     // TODO: Replace with real authentication against Supabase
     // For now, accept any email/password for development
     if (email && password) {
-      // Use consistent token format with Express.js server
+      Logger.info('Generating JWT tokens', { email });
+      // Use consistent token format with Express.js server (user object format)
       const accessToken = jwt.sign(
         {
-          userId: 1,
-          email: email,
-          resourceId: 1,
-          roles: ['admin'],
-          permissions: [
-            'time_logging', 'reports', 'change_lead_reports', 'resource_management',
-            'project_management', 'user_management', 'system_admin', 'dashboard',
-            'calendar', 'submission_overview', 'settings', 'role_management'
-          ]
+          user: { id: 1, email: email, resourceId: 1 }
         },
         JWT_SECRET,
         { expiresIn: rememberMe ? '30d' : '1d' }
@@ -44,6 +43,12 @@ const loginHandler = async (req, res, { validatedData }) => {
         JWT_SECRET,
         { expiresIn: '30d' }
       );
+
+      Logger.info('JWT tokens generated successfully', {
+        email,
+        accessTokenLength: accessToken.length,
+        refreshTokenLength: refreshToken.length
+      });
 
       const userData = {
         user: {
@@ -69,7 +74,13 @@ const loginHandler = async (req, res, { validatedData }) => {
     }
   } catch (error) {
     Logger.error('Login error', error, { email });
-    return createErrorResponse(res, 500, 'Login failed');
+
+    // Provide more detailed error information in development
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? 'Login failed'
+      : `Login failed: ${error.message}`;
+
+    return createErrorResponse(res, 500, errorMessage);
   }
 };
 
