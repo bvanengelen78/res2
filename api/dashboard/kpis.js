@@ -50,15 +50,45 @@ const calculateKPIs = async (filters = {}) => {
 
     // Calculate utilization rate
     const totalCapacity = filteredResources.reduce((sum, r) => sum + (r.weeklyCapacity || 40), 0);
+
+    // Calculate total allocated hours from both allocatedHours field and weeklyAllocations
     const totalAllocated = allocations
       .filter(a => filteredResources.some(r => r.id === a.resourceId))
-      .reduce((sum, a) => sum + a.hoursPerWeek, 0);
+      .reduce((sum, a) => {
+        // Use allocatedHours if available and > 0, otherwise sum up weeklyAllocations
+        let allocationHours = 0;
+
+        if (a.allocatedHours && a.allocatedHours > 0) {
+          allocationHours = a.allocatedHours;
+        } else if (a.weeklyAllocations && typeof a.weeklyAllocations === 'object') {
+          allocationHours = Object.values(a.weeklyAllocations).reduce((weekSum, hours) => weekSum + (parseFloat(hours) || 0), 0);
+        }
+
+        return sum + allocationHours;
+      }, 0);
+
     const utilizationRate = totalCapacity > 0 ? (totalAllocated / totalCapacity) * 100 : 0;
+
+
+
+    // Ensure utilizationRate is a valid number
+    const finalUtilizationRate = isNaN(utilizationRate) ? 0 : utilizationRate;
 
     // Calculate conflicts (resources over 100% capacity)
     const resourceUtilization = filteredResources.map(resource => {
       const resourceAllocations = allocations.filter(a => a.resourceId === resource.id);
-      const totalHours = resourceAllocations.reduce((sum, a) => sum + a.hoursPerWeek, 0);
+      const totalHours = resourceAllocations.reduce((sum, a) => {
+        // Use allocatedHours if available and > 0, otherwise sum up weeklyAllocations
+        let allocationHours = 0;
+
+        if (a.allocatedHours && a.allocatedHours > 0) {
+          allocationHours = a.allocatedHours;
+        } else if (a.weeklyAllocations && typeof a.weeklyAllocations === 'object') {
+          allocationHours = Object.values(a.weeklyAllocations).reduce((weekSum, hours) => weekSum + (parseFloat(hours) || 0), 0);
+        }
+
+        return sum + allocationHours;
+      }, 0);
       const utilization = resource.weeklyCapacity > 0 ? (totalHours / resource.weeklyCapacity) * 100 : 0;
       return { resource, utilization };
     });
@@ -80,7 +110,7 @@ const calculateKPIs = async (filters = {}) => {
       totalProjects,
       availableResources,
       totalResources,
-      utilization: Math.round(utilizationRate * 10) / 10,
+      utilization: Math.round(finalUtilizationRate * 10) / 10,
       conflicts,
       budgetUtilization: 72.3, // TODO: Calculate from real budget data
       trendData: {
@@ -97,10 +127,10 @@ const calculateKPIs = async (filters = {}) => {
           trend_data: generateTrendData(availableResources, 0.15)
         },
         utilization: {
-          current_value: Math.round(utilizationRate * 10) / 10,
-          previous_value: Math.max(0, Math.round((utilizationRate - (Math.random() * 10)) * 10) / 10),
+          current_value: Math.round(finalUtilizationRate * 10) / 10,
+          previous_value: Math.max(0, Math.round((finalUtilizationRate - (Math.random() * 10)) * 10) / 10),
           period_label: 'from last week',
-          trend_data: generateTrendData(utilizationRate, 0.1)
+          trend_data: generateTrendData(finalUtilizationRate, 0.1)
         },
         conflicts: {
           current_value: conflicts,
@@ -113,7 +143,7 @@ const calculateKPIs = async (filters = {}) => {
 
     Logger.info('KPIs calculated successfully', {
       activeProjects,
-      utilization: utilizationRate,
+      utilization: finalUtilizationRate,
       conflicts,
       department: filters.department
     });

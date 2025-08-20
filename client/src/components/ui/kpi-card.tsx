@@ -8,6 +8,7 @@ interface KpiCardProps {
   data: number[];          // Array of 20-40 numbers for sparkline
   height?: number;         // Optional height override (default: 220px)
   comparisonText?: string; // Period comparison text (e.g., "from last week", "from last month")
+  isPercentage?: boolean;  // Whether to display value as percentage (e.g., "85.5%")
 }
 
 /**
@@ -26,17 +27,22 @@ const KpiCard: React.FC<KpiCardProps> = ({
   deltaPercent,
   data,
   height = 220,
-  comparisonText = 'from last month'
+  comparisonText = 'from last month',
+  isPercentage = false
 }) => {
   /**
    * Formats a number with thousands separators and appropriate +/- sign
    * @param num - The number to format
-   * @returns Formatted string (e.g., "+2,350", "−1,250", "0")
+   * @returns Formatted string (e.g., "+2,350", "−1,250", "0", "85.5%")
    */
   const formatValue = (num: number): string => {
+    if (isPercentage) {
+      return `${num}%`;
+    }
+
     const absValue = Math.abs(num);
     const formattedNumber = absValue.toLocaleString('en-US');
-    
+
     if (num > 0) {
       return `+${formattedNumber}`;
     } else if (num < 0) {

@@ -149,7 +149,10 @@ const transformKPIData = (
       hasKpis: !!kpis,
       hasTrendData: !!trendData,
       periodFilter,
-      kpisKeys: Object.keys(kpis || {})
+      kpisKeys: Object.keys(kpis || {}),
+      utilizationValue: kpis.utilization,
+      utilizationType: typeof kpis.utilization,
+      utilizationIsNumber: typeof kpis.utilization === 'number'
     });
 
   // Only include KPIs that have real data (no fallbacks to zeros)
@@ -176,24 +179,37 @@ const transformKPIData = (
       hasRealData: typeof kpis.conflicts === 'number'
     },
     {
-      title: "Utilization Rate",
+      title: "Resource Utilization",
       value: kpis.utilization,
       deltaPercent: calculateDeltaPercent(trendData?.utilization),
-      data: trendData?.utilization?.trend_data || generateFallbackTrendData(kpis.utilization || 0, "Utilization Rate"),
-      hasRealData: typeof kpis.utilization === 'number'
+      data: trendData?.utilization?.trend_data || generateFallbackTrendData(kpis.utilization || 0, "Resource Utilization"),
+      hasRealData: typeof kpis.utilization === 'number' && kpis.utilization !== null && kpis.utilization !== undefined
     }
   ];
 
   // Get period comparison text
   const comparisonText = periodFilter ? getPeriodComparisonText(periodFilter) : 'from last month';
 
+  // Debug: Log KPI configs before filtering
+  console.log('[transformKPIData] KPI configs before filtering:', kpiConfigs.map(kpi => ({
+    title: kpi.title,
+    value: kpi.value,
+    hasRealData: kpi.hasRealData,
+    valueType: typeof kpi.value
+  })));
+
   // Only return KPIs with real data
-  return kpiConfigs.filter(kpi => kpi.hasRealData).map(kpi => ({
+  const filteredKpis = kpiConfigs.filter(kpi => kpi.hasRealData);
+
+  console.log('[transformKPIData] Filtered KPIs count:', filteredKpis.length);
+
+  return filteredKpis.map(kpi => ({
     title: kpi.title,
     value: kpi.value,
     deltaPercent: kpi.deltaPercent,
     data: kpi.data,
-    comparisonText
+    comparisonText,
+    isPercentage: kpi.title === "Resource Utilization"
   }));
   } catch (error) {
     console.error('[transformKPIData] Error processing KPI data:', error);
@@ -553,6 +569,7 @@ export default function Dashboard() {
                     deltaPercent={kpiData.deltaPercent}
                     data={kpiData.data}
                     comparisonText={kpiData.comparisonText}
+                    isPercentage={kpiData.isPercentage}
                   />
                 </div>
               ))}
