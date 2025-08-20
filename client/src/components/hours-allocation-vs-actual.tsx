@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, getWeek, getYear, addWeeks, startOfQuarter, endOfQuarter } from "date-fns";
 import { getPeriodInfo, type PeriodFilter } from "@/lib/period-utils";
+import { apiRequest } from "@/lib/queryClient";
 
 
 interface AllocationData {
@@ -77,11 +78,7 @@ export function HoursAllocationVsActual({ className, periodFilter = 'currentWeek
         startDate: dateRange.start,
         endDate: dateRange.end
       });
-      const response = await fetch(`/api/allocations?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch allocations');
-      }
-      return response.json();
+      return await apiRequest(`/api/allocations?${params}`);
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -91,11 +88,7 @@ export function HoursAllocationVsActual({ className, periodFilter = 'currentWeek
   const { data: timeEntries = [], isLoading: timeEntriesLoading, error: timeEntriesError } = useQuery({
     queryKey: ["/api/time-entries", dateRange.start, dateRange.end],
     queryFn: async () => {
-      const response = await fetch('/api/time-entries');
-      if (!response.ok) {
-        throw new Error('Failed to fetch time entries');
-      }
-      return response.json();
+      return await apiRequest('/api/time-entries');
     },
     staleTime: 0,
     refetchOnMount: true,

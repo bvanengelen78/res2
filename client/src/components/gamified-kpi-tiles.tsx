@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy,
@@ -691,9 +692,7 @@ export function GamifiedKpiTiles({
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard/gamified-metrics?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch gamified metrics');
-      return response.json() as GamifiedMetrics;
+      return await apiRequest(`/api/dashboard/gamified-metrics?${params}`) as GamifiedMetrics;
     },
     staleTime: 0,
     refetchOnMount: true,
