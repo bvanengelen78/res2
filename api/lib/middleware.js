@@ -70,34 +70,62 @@ const authenticate = async (req) => {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET);
 
+    // Enhanced token debugging
+    Logger.info('Token decoded successfully', {
+      tokenKeys: Object.keys(decoded),
+      hasUserId: !!decoded.userId,
+      userIdType: typeof decoded.userId,
+      userIdValue: decoded.userId,
+      hasUserObject: !!decoded.user,
+      userObjectId: decoded.user?.id,
+      email: decoded.email || decoded.user?.email,
+      roles: decoded.roles,
+      permissions: Array.isArray(decoded.permissions) ? decoded.permissions.length : 'not_array'
+    });
+
     // Get real user data from database instead of using token data
     const { DatabaseService } = require('./supabase');
 
-    // Handle both token formats:
+    // Handle both token formats and validate userId
     // 1. Express.js server format: { userId: 123, ... }
     // 2. Vercel serverless format: { user: { id: 123, ... } }
     let userId = decoded.userId || decoded.user?.id;
 
-    if (!userId) {
-      Logger.error('Token missing userId', null, {
+    // Convert string userId to number if needed
+    if (typeof userId === 'string' && userId !== 'undefined' && userId !== 'null') {
+      const parsedUserId = parseInt(userId, 10);
+      if (!isNaN(parsedUserId)) {
+        userId = parsedUserId;
+        Logger.info('Converted string userId to number', { originalUserId: decoded.userId, convertedUserId: userId });
+      }
+    }
+
+    // Validate userId
+    if (!userId || userId === 'undefined' || userId === 'null' || isNaN(userId)) {
+      Logger.error('Token missing or invalid userId', null, {
         decoded: {
           hasUserId: !!decoded.userId,
+          userIdType: typeof decoded.userId,
+          userIdValue: decoded.userId,
           hasUserObject: !!decoded.user,
           userObjectId: decoded.user?.id,
           tokenKeys: Object.keys(decoded)
         }
       });
-      return { success: false, error: 'Invalid token structure' };
+      return { success: false, error: 'Invalid token structure - missing valid userId' };
     }
 
-    Logger.info('Extracted userId from token', {
+    Logger.info('Extracted valid userId from token', {
       userId,
+      userIdType: typeof userId,
       tokenFormat: decoded.userId ? 'express' : 'vercel',
       email: decoded.email || decoded.user?.email
     });
 
     // Try to query real user data with roles and permissions
     try {
+      Logger.info('Attempting database query for user', { userId, userIdType: typeof userId });
+
       const userWithRoles = await DatabaseService.getUserWithRoles(userId);
 
       if (userWithRoles) {
@@ -109,11 +137,15 @@ const authenticate = async (req) => {
         });
 
         return { success: true, user: userWithRoles };
+      } else {
+        Logger.warn('User not found in database, falling back to token data', { userId });
       }
     } catch (dbError) {
       Logger.warn('Database query failed, falling back to token data', {
         error: dbError.message,
-        userId
+        errorCode: dbError.code,
+        userId,
+        userIdType: typeof userId
       });
     }
 
