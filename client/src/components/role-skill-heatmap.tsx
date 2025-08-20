@@ -194,10 +194,12 @@ export function RoleSkillHeatmap({
 
     // Create a map of heatmap data for quick lookup
     const heatmapResourceMap = new Map();
-    if (heatmapData) {
+    if (heatmapData && Array.isArray(heatmapData)) {
       heatmapData.forEach(heatmapResource => {
         heatmapResourceMap.set(heatmapResource.id, heatmapResource);
       });
+    } else if (heatmapData && !Array.isArray(heatmapData)) {
+      console.warn('[RoleSkillHeatmap] heatmapData is not an array:', typeof heatmapData, heatmapData);
     }
 
     // Process all resources using heatmap data (which includes ALL resources with utilization)

@@ -633,6 +633,7 @@ export default function Dashboard() {
                   ? 'period-transition-active'
                   : ''
             } transition-all duration-500`}>
+              <DashboardErrorBoundary componentName="Role Skill Heatmap">
               <RoleSkillHeatmap
                 resources={resources || []}
                 alerts={alerts}
@@ -643,6 +644,7 @@ export default function Dashboard() {
                 }}
                 isTransitioning={isTransitioning}
               />
+              </DashboardErrorBoundary>
             </div>
 
             {/* Hours Allocation Analysis - Always Expanded */}

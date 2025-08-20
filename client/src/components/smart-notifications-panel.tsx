@@ -119,8 +119,9 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
         }));
     }
 
-    // Capacity prediction alerts
-    resourcesWithUtilization.forEach(resource => {
+    // Capacity prediction alerts - Add defensive check
+    if (Array.isArray(resourcesWithUtilization)) {
+      resourcesWithUtilization.forEach(resource => {
       if (resource.utilization > 90 && resource.utilization <= 100) {
         alertsList.push({
           id: `capacity-${resource.id}`,
@@ -144,7 +145,10 @@ export function SmartNotificationsPanel({ projects, resources, alerts, className
           daysAhead: 0
         });
       }
-    });
+      });
+    } else {
+      console.warn('[SmartNotificationsPanel] resourcesWithUtilization is not an array:', resourcesWithUtilization);
+    }
 
     // Project deadline predictions
     if (projects && Array.isArray(projects)) {
