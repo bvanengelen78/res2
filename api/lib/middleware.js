@@ -59,17 +59,41 @@ const Logger = {
   }
 };
 
-// Authentication middleware
-const authenticate = (req) => {
+// Authentication middleware with real database queries
+const authenticate = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { success: false, error: 'Missing or invalid authorization header' };
   }
-  
+
   try {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET);
-    return { success: true, user: decoded.user };
+
+    // Get real user data from database instead of using token data
+    const { DatabaseService } = require('./supabase');
+
+    if (!decoded.userId) {
+      Logger.error('Token missing userId', null, { decoded });
+      return { success: false, error: 'Invalid token structure' };
+    }
+
+    // Query real user data with roles and permissions
+    const userWithRoles = await DatabaseService.getUserWithRoles(decoded.userId);
+
+    if (!userWithRoles) {
+      Logger.error('User not found in database', null, { userId: decoded.userId });
+      return { success: false, error: 'User not found' };
+    }
+
+    Logger.info('User authenticated with real database data', {
+      userId: userWithRoles.id,
+      email: userWithRoles.email,
+      roles: userWithRoles.roles?.map(r => r.role),
+      permissions: userWithRoles.permissions
+    });
+
+    return { success: true, user: userWithRoles };
   } catch (error) {
     Logger.error('Authentication failed', error, { token: authHeader.substring(0, 20) + '...' });
     return { success: false, error: 'Invalid or expired token' };
@@ -147,10 +171,10 @@ const withMiddleware = (handler, options = {}) => {
         return createErrorResponse(res, 405, `Method ${req.method} not allowed`);
       }
 
-      // Authentication
+      // Authentication (now async)
       let user = null;
       if (requireAuth) {
-        const authResult = authenticate(req);
+        const authResult = await authenticate(req);
         if (!authResult.success) {
           return createErrorResponse(res, 401, authResult.error);
         }
