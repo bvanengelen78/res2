@@ -188,8 +188,24 @@ export class AuthService {
   async verifyToken(token: string): Promise<UserWithRoles> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
-      
-      const userWithRoles = await storage.getUserWithRoles(decoded.userId);
+
+      // Handle both token formats: { userId: 1 } and { user: { id: 1 } }
+      let userId = decoded.userId || decoded.user?.id;
+
+      // Convert string userId to number if needed
+      if (typeof userId === 'string' && userId !== 'undefined' && userId !== 'null') {
+        const parsedUserId = parseInt(userId, 10);
+        if (!isNaN(parsedUserId)) {
+          userId = parsedUserId;
+        }
+      }
+
+      // Validate userId
+      if (!userId || userId === 'undefined' || userId === 'null' || isNaN(userId)) {
+        throw new Error('Invalid token structure - missing valid userId');
+      }
+
+      const userWithRoles = await storage.getUserWithRoles(userId);
       if (!userWithRoles) {
         throw new Error('User not found');
       }
