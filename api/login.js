@@ -22,14 +22,25 @@ const loginHandler = async (req, res, { validatedData }) => {
     // TODO: Replace with real authentication against Supabase
     // For now, accept any email/password for development
     if (email && password) {
+      // Use consistent token format with Express.js server
       const accessToken = jwt.sign(
-        { user: { id: 1, email: email, resourceId: 1 } },
+        {
+          userId: 1,
+          email: email,
+          resourceId: 1,
+          roles: ['admin'],
+          permissions: [
+            'time_logging', 'reports', 'change_lead_reports', 'resource_management',
+            'project_management', 'user_management', 'system_admin', 'dashboard',
+            'calendar', 'submission_overview', 'settings', 'role_management'
+          ]
+        },
         JWT_SECRET,
         { expiresIn: rememberMe ? '30d' : '1d' }
       );
 
       const refreshToken = jwt.sign(
-        { userId: 1 },
+        { userId: 1, type: 'refresh' },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -62,9 +73,11 @@ const loginHandler = async (req, res, { validatedData }) => {
   }
 };
 
-// Export with middleware
+// Export with middleware (fixed validation configuration)
 module.exports = withMiddleware(loginHandler, {
   requireAuth: false,
   allowedMethods: ['POST'],
-  validateSchema: loginSchema
+  validateInput: {
+    POST: loginSchema
+  }
 });
