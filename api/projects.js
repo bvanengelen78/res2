@@ -2,7 +2,7 @@ const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 const { DatabaseService } = require('./lib/supabase');
 
-// Input validation schema
+// Input validation schemas
 const projectsQuerySchema = z.object({
   department: z.string().optional(),
   status: z.enum(['active', 'inactive', 'planning', 'completed', 'all']).optional().default('active'),
@@ -17,6 +17,19 @@ const projectsQuerySchema = z.object({
   search: z.string().optional(),
   sortBy: z.enum(['name', 'startDate', 'priority', 'budget']).optional().default('name'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc')
+});
+
+// Schema for creating projects
+const createProjectSchema = z.object({
+  name: z.string().min(1, 'Project name is required'),
+  description: z.string().optional(),
+  status: z.enum(['active', 'completed', 'on-hold', 'cancelled']).optional().default('active'),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+  estimatedHours: z.number().min(0, 'Estimated hours must be non-negative').optional(),
+  department: z.string().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).optional().default('medium'),
+  ogsmCharterId: z.number().int().positive().optional()
 });
 
 // Calculate project metrics
@@ -159,9 +172,108 @@ const projectsHandler = async (req, res, { user, validatedData }) => {
   return res.json(projects);
 };
 
+// Create project handler
+const createProjectHandler = async (req, res, { user, validatedData }) => {
+  Logger.info('Creating new project', {
+    userId: user.id,
+    data: validatedData
+  });
+
+  try {
+    // Use Supabase client directly for creation
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const insertData = {
+      name: validatedData.name,
+      description: validatedData.description || null,
+      status: validatedData.status || 'active',
+      start_date: validatedData.startDate,
+      end_date: validatedData.endDate,
+      estimated_hours: validatedData.estimatedHours || null,
+      department: validatedData.department || null,
+      priority: validatedData.priority || 'medium',
+      ogsm_charter_id: validatedData.ogsmCharterId || null
+    };
+
+    const { data, error } = await supabase
+      .from('projects')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      Logger.error('Failed to create project in database', error, {
+        userId: user.id,
+        data: validatedData
+      });
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    // Convert to camelCase for response
+    const project = {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      status: data.status,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      estimatedHours: data.estimated_hours,
+      department: data.department,
+      priority: data.priority,
+      ogsmCharterId: data.ogsm_charter_id,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+
+    Logger.info('Project created successfully', {
+      userId: user.id,
+      projectId: project.id,
+      projectName: project.name
+    });
+
+    return res.status(201).json(project);
+  } catch (error) {
+    Logger.error('Failed to create project', error, { userId: user.id });
+    return res.status(500).json({ message: 'Failed to create project' });
+  }
+};
+
+// Main handler that routes based on HTTP method
+const projectsMainHandler = async (req, res, context) => {
+  const { method } = req;
+
+  switch (method) {
+    case 'GET':
+      return projectsHandler(req, res, context);
+    case 'POST':
+      // Validate with create schema
+      const createValidation = createProjectSchema.safeParse(req.body);
+      if (!createValidation.success) {
+        Logger.warn('Invalid project data for creation', {
+          errors: createValidation.error.errors,
+          userId: context.user?.id
+        });
+        return res.status(400).json({
+          message: 'Invalid project data',
+          errors: createValidation.error.errors
+        });
+      }
+      return createProjectHandler(req, res, {
+        ...context,
+        validatedData: createValidation.data
+      });
+    default:
+      return res.status(405).json({ message: `Method ${method} not allowed` });
+  }
+};
+
 // Export with middleware
-module.exports = withMiddleware(projectsHandler, {
+module.exports = withMiddleware(projectsMainHandler, {
   requireAuth: true,
-  allowedMethods: ['GET'],
-  validateSchema: projectsQuerySchema
+  allowedMethods: ['GET', 'POST'],
+  validateSchema: projectsQuerySchema // Only for GET requests
 });
