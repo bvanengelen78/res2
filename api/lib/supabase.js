@@ -236,6 +236,97 @@ const DatabaseService = {
     });
   },
 
+  // User authentication methods
+  async getUserWithRoles(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching user with roles from database', { userId });
+
+      // First get the user
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (userError) {
+        Logger.error('Failed to fetch user', userError, { userId });
+        throw new Error(`User query error: ${userError.message}`);
+      }
+
+      if (!userData) {
+        Logger.warn('User not found', { userId });
+        return null;
+      }
+
+      // Get user roles
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (rolesError) {
+        Logger.error('Failed to fetch user roles', rolesError, { userId });
+        // Continue without roles rather than failing completely
+      }
+
+      // Get user's resource if they have one
+      let resource = null;
+      if (userData.resource_id) {
+        const { data: resourceData, error: resourceError } = await supabase
+          .from('resources')
+          .select('*')
+          .eq('id', userData.resource_id)
+          .single();
+
+        if (!resourceError && resourceData) {
+          resource = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(resourceData), ['createdAt', 'updatedAt']);
+        }
+      }
+
+      // Convert roles to proper format
+      const roles = (rolesData || []).map(role => ({
+        id: role.id,
+        userId: role.user_id,
+        resourceId: role.resource_id,
+        role: role.role,
+        assignedAt: role.assigned_at ? new Date(role.assigned_at) : null,
+        assignedBy: role.assigned_by,
+      }));
+
+      // Calculate permissions from roles
+      const ROLE_PERMISSIONS = {
+        'regular_user': ['time_logging', 'dashboard'],
+        'change_lead': ['time_logging', 'change_lead_reports', 'dashboard', 'reports'],
+        'manager_change': ['time_logging', 'reports', 'change_lead_reports', 'resource_management', 'project_management', 'dashboard', 'calendar', 'submission_overview', 'settings'],
+        'business_controller': ['time_logging', 'reports', 'change_lead_reports', 'resource_management', 'project_management', 'user_management', 'dashboard', 'calendar', 'submission_overview', 'settings'],
+        'admin': ['time_logging', 'reports', 'change_lead_reports', 'resource_management', 'project_management', 'user_management', 'system_admin', 'dashboard', 'calendar', 'submission_overview', 'settings', 'role_management']
+      };
+
+      const allPermissions = roles.flatMap(role => ROLE_PERMISSIONS[role.role] || []);
+      const uniquePermissions = Array.from(new Set(allPermissions));
+
+      // Convert user data to camelCase and add roles/permissions
+      const user = {
+        ...SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(userData), ['createdAt', 'updatedAt']),
+        resource,
+        roles,
+        permissions: uniquePermissions,
+      };
+
+      Logger.info('Successfully fetched user with roles', {
+        userId,
+        email: user.email,
+        rolesCount: roles.length,
+        permissionsCount: uniquePermissions.length,
+        permissions: uniquePermissions
+      });
+
+      return user;
+    });
+  },
+
   // Health check
   async checkHealth() {
     try {
