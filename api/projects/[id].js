@@ -80,11 +80,19 @@ const calculateProjectMetrics = (project, allocations, resources) => {
 // Get project with optional allocations and metrics
 const getProjectWithDetails = async (projectId, includeAllocations = false, includeMetrics = false) => {
   try {
-    // Fetch project from Supabase
-    const projects = await DatabaseService.getProjects();
+    // Fetch project and resources from Supabase
+    const [projects, resources] = await Promise.all([
+      DatabaseService.getProjects(),
+      DatabaseService.getResources()
+    ]);
 
     if (!projects || !Array.isArray(projects)) {
       Logger.warn('Invalid projects data received from database', { projectId, projectsType: typeof projects });
+      return null;
+    }
+
+    if (!resources || !Array.isArray(resources)) {
+      Logger.warn('Invalid resources data received from database', { projectId, resourcesType: typeof resources });
       return null;
     }
 
@@ -97,6 +105,49 @@ const getProjectWithDetails = async (projectId, includeAllocations = false, incl
 
     // Start with basic project data
     let responseData = { ...project };
+
+    // Enrich project with leadership team data
+    if (project.directorId) {
+      const director = resources.find(r => r.id === project.directorId);
+      if (director) {
+        responseData.director = {
+          id: director.id,
+          name: director.name,
+          email: director.email,
+          role: director.role,
+          department: director.department,
+          profileImage: director.profileImage
+        };
+      }
+    }
+
+    if (project.changeLeadId) {
+      const changeLead = resources.find(r => r.id === project.changeLeadId);
+      if (changeLead) {
+        responseData.changeLead = {
+          id: changeLead.id,
+          name: changeLead.name,
+          email: changeLead.email,
+          role: changeLead.role,
+          department: changeLead.department,
+          profileImage: changeLead.profileImage
+        };
+      }
+    }
+
+    if (project.businessLeadId) {
+      const businessLead = resources.find(r => r.id === project.businessLeadId);
+      if (businessLead) {
+        responseData.businessLead = {
+          id: businessLead.id,
+          name: businessLead.name,
+          email: businessLead.email,
+          role: businessLead.role,
+          department: businessLead.department,
+          profileImage: businessLead.profileImage
+        };
+      }
+    }
 
     // Only fetch additional data if requested
     if (includeAllocations || includeMetrics) {
