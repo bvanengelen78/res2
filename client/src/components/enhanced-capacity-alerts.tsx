@@ -153,7 +153,10 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
   );
 
   const sortedCategories = useMemo(() => {
-    if (!activeAlerts?.categories) return [];
+    if (!activeAlerts?.categories || !Array.isArray(activeAlerts.categories)) {
+      console.warn('[EnhancedCapacityAlerts] activeAlerts.categories is not a valid array for sorting:', activeAlerts?.categories);
+      return [];
+    }
 
     // Sort categories by priority: critical, error, warning, info, unassigned
     const priorityOrder = { critical: 0, error: 1, warning: 2, info: 3, unassigned: 4 };
@@ -164,7 +167,10 @@ export function EnhancedCapacityAlerts({ alerts, isLoading, kpis, resources = []
 
   // Management insights for critical alerts - MOVED BEFORE CONDITIONAL RETURNS
   const managementInsights = useMemo(() => {
-    if (!activeAlerts?.categories) return null;
+    if (!activeAlerts?.categories || !Array.isArray(activeAlerts.categories)) {
+      console.warn('[EnhancedCapacityAlerts] activeAlerts.categories is not a valid array:', activeAlerts?.categories);
+      return null;
+    }
 
     const criticalCategory = activeAlerts.categories.find(cat => cat.type === 'critical');
     const errorCategory = activeAlerts.categories.find(cat => cat.type === 'error');

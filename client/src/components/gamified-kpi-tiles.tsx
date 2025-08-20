@@ -685,14 +685,13 @@ export function GamifiedKpiTiles({
 
   // Fetch gamified metrics data
   const { data: metrics, isLoading, error } = useQuery({
-    queryKey: ["/api/dashboard", "gamified-metrics", currentPeriod.startDate, currentPeriod.endDate],
+    queryKey: ["/api/dashboard/gamified-metrics", currentPeriod.startDate, currentPeriod.endDate],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('endpoint', 'gamified-metrics');
       params.append('startDate', currentPeriod.startDate);
       params.append('endDate', currentPeriod.endDate);
 
-      const response = await fetch(`/api/dashboard?${params}`);
+      const response = await fetch(`/api/dashboard/gamified-metrics?${params}`);
       if (!response.ok) throw new Error('Failed to fetch gamified metrics');
       return response.json() as GamifiedMetrics;
     },
