@@ -214,8 +214,8 @@ export default function ProjectDetail() {
   }, []);
 
   const { data: project, isLoading, error } = useQuery<ProjectWithAllocations>({
-    queryKey: ["/api/projects", projectId],
-    queryFn: () => apiRequest(`/api/projects/${projectId}`),
+    queryKey: ["/api/projects", projectId, "includeAllocations", "includeMetrics"],
+    queryFn: () => apiRequest(`/api/projects/${projectId}?includeAllocations=true&includeMetrics=true`),
     enabled: !!projectId,
   });
 

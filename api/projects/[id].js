@@ -64,8 +64,8 @@ const calculateProjectMetrics = (project, allocations, resources) => {
   };
 };
 
-// Get project with allocations (similar to storage.getProjectWithAllocations)
-const getProjectWithAllocations = async (projectId) => {
+// Get project with optional allocations and metrics
+const getProjectWithDetails = async (projectId, includeAllocations = false, includeMetrics = false) => {
   try {
     // Fetch project from Supabase
     const projects = await DatabaseService.getProjects();
@@ -81,46 +81,58 @@ const getProjectWithAllocations = async (projectId) => {
       Logger.info('Project not found in database', { projectId, availableProjects: projects.length });
       return null;
     }
-    
-    // Fetch allocations for this project
-    const [allocations, resources] = await Promise.all([
-      DatabaseService.getResourceAllocations(),
-      DatabaseService.getResources()
-    ]);
 
-    if (!allocations || !Array.isArray(allocations)) {
-      Logger.warn('Invalid allocations data received from database', { projectId, allocationsType: typeof allocations });
-      return { ...project, allocations: [], metrics: null };
+    // Start with basic project data
+    let responseData = { ...project };
+
+    // Only fetch additional data if requested
+    if (includeAllocations || includeMetrics) {
+      const [allocations, resources] = await Promise.all([
+        DatabaseService.getResourceAllocations(),
+        DatabaseService.getResources()
+      ]);
+
+      if (!allocations || !Array.isArray(allocations)) {
+        Logger.warn('Invalid allocations data received from database', { projectId, allocationsType: typeof allocations });
+        if (includeAllocations) responseData.allocations = [];
+        if (includeMetrics) responseData.metrics = null;
+        return responseData;
+      }
+
+      if (!resources || !Array.isArray(resources)) {
+        Logger.warn('Invalid resources data received from database', { projectId, resourcesType: typeof resources });
+        if (includeAllocations) responseData.allocations = [];
+        if (includeMetrics) responseData.metrics = null;
+        return responseData;
+      }
+
+      const projectAllocations = allocations.filter(allocation => allocation.projectId === projectId);
+
+      if (includeAllocations) {
+        // Enrich allocations with resource information
+        const enrichedAllocations = projectAllocations.map(allocation => {
+          const resource = resources.find(r => r.id === allocation.resourceId);
+          return {
+            ...allocation,
+            resource: resource ? {
+              id: resource.id,
+              name: resource.name,
+              email: resource.email,
+              role: resource.role,
+              department: resource.department,
+              weeklyCapacity: resource.weeklyCapacity || 40
+            } : null
+          };
+        });
+        responseData.allocations = enrichedAllocations;
+      }
+
+      if (includeMetrics) {
+        responseData.metrics = calculateProjectMetrics(project, allocations, resources);
+      }
     }
 
-    if (!resources || !Array.isArray(resources)) {
-      Logger.warn('Invalid resources data received from database', { projectId, resourcesType: typeof resources });
-      return { ...project, allocations: [], metrics: null };
-    }
-
-    const projectAllocations = allocations.filter(allocation => allocation.projectId === projectId);
-    
-    // Enrich allocations with resource information
-    const enrichedAllocations = projectAllocations.map(allocation => {
-      const resource = resources.find(r => r.id === allocation.resourceId);
-      return {
-        ...allocation,
-        resource: resource ? {
-          id: resource.id,
-          name: resource.name,
-          email: resource.email,
-          role: resource.role,
-          department: resource.department,
-          weeklyCapacity: resource.weeklyCapacity || 40
-        } : null
-      };
-    });
-    
-    return {
-      ...project,
-      allocations: enrichedAllocations,
-      metrics: calculateProjectMetrics(project, allocations, resources)
-    };
+    return responseData;
   } catch (error) {
     Logger.error('Failed to fetch project with allocations', error, { projectId });
     throw error;
@@ -153,46 +165,28 @@ const projectDetailHandler = async (req, res, { user, validatedData }) => {
   });
   
   try {
-    // Fetch project with allocations
-    const project = await getProjectWithAllocations(projectId);
-    
+    // Fetch project with optional details
+    const project = await getProjectWithDetails(projectId, includeAllocations, includeMetrics);
+
     if (!project) {
       Logger.warn('Project not found', { projectId, userId: user.id });
       return res.status(404).json({ message: 'Project not found' });
     }
-    
-    // Prepare response data
-    let responseData = { ...project };
-    
-    // Include allocations if not already included
-    if (includeAllocations && !responseData.allocations) {
-      const allocations = await DatabaseService.getResourceAllocations();
-      responseData.allocations = allocations.filter(allocation => allocation.projectId === projectId);
-    }
-    
-    // Include metrics if requested
-    if (includeMetrics && !responseData.metrics) {
-      const [allocations, resources] = await Promise.all([
-        DatabaseService.getResourceAllocations(),
-        DatabaseService.getResources()
-      ]);
-      responseData.metrics = calculateProjectMetrics(project, allocations, resources);
-    }
-    
+
     // TODO: Include time entries if requested (when time entries table is available)
     if (includeTimeEntries) {
-      responseData.timeEntries = [];
+      project.timeEntries = [];
     }
     
     Logger.info('Project detail fetched successfully', {
       userId: user.id,
       projectId,
-      hasAllocations: !!responseData.allocations,
-      hasMetrics: !!responseData.metrics,
-      allocationsCount: responseData.allocations?.length || 0
+      hasAllocations: !!project.allocations,
+      hasMetrics: !!project.metrics,
+      allocationsCount: project.allocations?.length || 0
     });
-    
-    return res.json(responseData);
+
+    return res.json(project);
 
   } catch (error) {
     Logger.error('Failed to fetch project detail', error, { userId: user.id, projectId });
