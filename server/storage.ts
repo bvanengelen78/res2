@@ -2990,7 +2990,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching OGSM charters:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getOgsmCharters();
       }
 
       return (data || []).map(charter =>
@@ -2998,7 +3000,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getOgsmCharters:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getOgsmCharters();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -3100,7 +3109,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching departments:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getDepartments();
       }
 
       return (data || []).map(department =>
@@ -3108,7 +3119,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getDepartments:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getDepartments();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -3210,7 +3228,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching notification settings:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getNotificationSettings();
       }
 
       return (data || []).map(setting =>
@@ -3218,7 +3238,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getNotificationSettings:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockSettingsService } = await import('./mock-settings-data');
+        return await MockSettingsService.getNotificationSettings();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 

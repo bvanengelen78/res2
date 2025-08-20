@@ -136,8 +136,13 @@ function OgsmChartersSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: charters = [], isLoading } = useQuery<OgsmCharter[]>({
+  const { data: charters = [], isLoading, error } = useQuery<OgsmCharter[]>({
     queryKey: ["/api/settings/ogsm-charters"],
+    queryFn: async () => {
+      return await apiRequest("/api/settings/ogsm-charters");
+    },
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const createMutation = useMutation({
@@ -213,7 +218,36 @@ function OgsmChartersSection() {
   };
 
   if (isLoading) {
-    return <div>Loading OGSM Charters...</div>;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">OGSM Charters</h3>
+        </div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">OGSM Charters</h3>
+        </div>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Failed to load OGSM charters. Please check your permissions or try again later.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (
@@ -294,8 +328,13 @@ function DepartmentsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: departments = [], isLoading } = useQuery<Department[]>({
+  const { data: departments = [], isLoading, error } = useQuery<Department[]>({
     queryKey: ["/api/settings/departments"],
+    queryFn: async () => {
+      return await apiRequest("/api/settings/departments");
+    },
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const createMutation = useMutation({
@@ -371,7 +410,36 @@ function DepartmentsSection() {
   };
 
   if (isLoading) {
-    return <div>Loading departments...</div>;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Departments</h3>
+        </div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Departments</h3>
+        </div>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Failed to load departments. Please check your permissions or try again later.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (
@@ -450,8 +518,13 @@ function NotificationSettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: settings = [], isLoading } = useQuery<NotificationSettings[]>({
+  const { data: settings = [], isLoading, error } = useQuery<NotificationSettings[]>({
     queryKey: ["/api/settings/notifications"],
+    queryFn: async () => {
+      return await apiRequest("/api/settings/notifications");
+    },
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   const updateMutation = useMutation({
@@ -530,7 +603,28 @@ function NotificationSettingsSection() {
   };
 
   if (isLoading) {
-    return <div>Loading notification settings...</div>;
+    return (
+      <div className="space-y-4">
+        <div className="space-y-3">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert className="border-red-200 bg-red-50">
+        <AlertDescription className="text-red-800">
+          Failed to load notification settings. Please check your permissions or try again later.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
