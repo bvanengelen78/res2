@@ -42,8 +42,8 @@ const calculateCapacityAlerts = async (filters = {}) => {
     // Calculate resource utilization and identify conflicts
     const resourceUtilization = filteredResources.map(resource => {
       const resourceAllocations = allocations.filter(a => a.resourceId === resource.id);
-      const totalHours = resourceAllocations.reduce((sum, a) => sum + a.hoursPerWeek, 0);
-      const utilization = resource.weeklyCapacity > 0 ? (totalHours / resource.weeklyCapacity) * 100 : 0;
+      const totalHours = resourceAllocations.reduce((sum, a) => sum + parseFloat(a.allocatedHours || 0), 0);
+      const utilization = resource.weeklyCapacity > 0 ? (totalHours / parseFloat(resource.weeklyCapacity)) * 100 : 0;
       
       // Get conflicting projects
       const conflictingProjects = resourceAllocations
@@ -56,7 +56,7 @@ const calculateCapacityAlerts = async (filters = {}) => {
         utilization,
         totalHours,
         conflictingProjects,
-        overallocationHours: Math.max(0, totalHours - resource.weeklyCapacity)
+        overallocationHours: Math.max(0, totalHours - parseFloat(resource.weeklyCapacity))
       };
     });
 
@@ -70,7 +70,7 @@ const calculateCapacityAlerts = async (filters = {}) => {
         department: ru.resource.department || ru.resource.role || 'General',
         currentUtilization: Math.round(ru.utilization * 10) / 10,
         threshold: 100.0,
-        weeklyCapacity: ru.resource.weeklyCapacity,
+        weeklyCapacity: parseFloat(ru.resource.weeklyCapacity),
         allocatedHours: ru.totalHours,
         conflictDetails: {
           overallocationHours: ru.overallocationHours,
@@ -94,7 +94,7 @@ const calculateCapacityAlerts = async (filters = {}) => {
         department: ru.resource.department || ru.resource.role || 'General',
         currentUtilization: Math.round(ru.utilization * 10) / 10,
         threshold: 90.0,
-        weeklyCapacity: ru.resource.weeklyCapacity,
+        weeklyCapacity: parseFloat(ru.resource.weeklyCapacity),
         allocatedHours: ru.totalHours,
         conflictDetails: {
           overallocationHours: ru.overallocationHours,
@@ -118,7 +118,7 @@ const calculateCapacityAlerts = async (filters = {}) => {
         department: ru.resource.department || ru.resource.role || 'General',
         currentUtilization: Math.round(ru.utilization * 10) / 10,
         threshold: 75.0,
-        weeklyCapacity: ru.resource.weeklyCapacity,
+        weeklyCapacity: parseFloat(ru.resource.weeklyCapacity),
         allocatedHours: ru.totalHours,
         conflictDetails: {
           overallocationHours: 0,
@@ -132,15 +132,26 @@ const calculateCapacityAlerts = async (filters = {}) => {
         createdAt: new Date().toISOString()
       }));
 
-    // Build categories structure
+    // Build categories structure matching AlertCategory interface
     const categories = [];
-    
+
     if (criticalAlerts.length > 0) {
       categories.push({
         type: 'critical',
         title: 'Critical Capacity Issues',
+        description: 'Resources exceeding 120% capacity requiring immediate attention',
         count: criticalAlerts.length,
-        alerts: criticalAlerts
+        resources: criticalAlerts.map(alert => ({
+          id: alert.resourceId,
+          name: alert.resourceName,
+          utilization: alert.currentUtilization,
+          allocatedHours: alert.allocatedHours,
+          capacity: parseFloat(alert.weeklyCapacity),
+          department: alert.department
+        })),
+        threshold: 120,
+        color: 'red',
+        icon: 'alert-circle'
       });
     }
 
@@ -148,8 +159,19 @@ const calculateCapacityAlerts = async (filters = {}) => {
       categories.push({
         type: 'warning',
         title: 'Capacity Warnings',
+        description: 'Resources approaching capacity limits (90-120%)',
         count: warningAlerts.length,
-        alerts: warningAlerts
+        resources: warningAlerts.map(alert => ({
+          id: alert.resourceId,
+          name: alert.resourceName,
+          utilization: alert.currentUtilization,
+          allocatedHours: alert.allocatedHours,
+          capacity: parseFloat(alert.weeklyCapacity),
+          department: alert.department
+        })),
+        threshold: 90,
+        color: 'yellow',
+        icon: 'alert-triangle'
       });
     }
 
@@ -157,8 +179,19 @@ const calculateCapacityAlerts = async (filters = {}) => {
       categories.push({
         type: 'info',
         title: 'Capacity Information',
+        description: 'Resources with moderate utilization (75-90%)',
         count: infoAlerts.length,
-        alerts: infoAlerts
+        resources: infoAlerts.map(alert => ({
+          id: alert.resourceId,
+          name: alert.resourceName,
+          utilization: alert.currentUtilization,
+          allocatedHours: alert.allocatedHours,
+          capacity: parseFloat(alert.weeklyCapacity),
+          department: alert.department
+        })),
+        threshold: 75,
+        color: 'blue',
+        icon: 'info'
       });
     }
 
@@ -173,7 +206,8 @@ const calculateCapacityAlerts = async (filters = {}) => {
         totalAlerts: criticalAlerts.length + warningAlerts.length + infoAlerts.length,
         criticalCount: criticalAlerts.length,
         warningCount: warningAlerts.length,
-        infoCount: infoAlerts.length
+        infoCount: infoAlerts.length,
+        unassignedCount: 0 // Not applicable for capacity alerts
       },
       metadata: {
         generatedAt: new Date().toISOString(),
@@ -228,7 +262,8 @@ const alertsHandler = async (req, res, { user, validatedData }) => {
         totalAlerts: 0,
         criticalCount: 0,
         warningCount: 0,
-        infoCount: 0
+        infoCount: 0,
+        unassignedCount: 0
       },
       metadata: {
         generatedAt: new Date().toISOString(),
