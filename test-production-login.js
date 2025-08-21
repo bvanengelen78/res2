@@ -74,6 +74,16 @@ async function runTests() {
   // Test 7: Enterprise Login
   await testEndpoint('/api/login-enterprise', 'POST', credentials);
 
+  // Test 8: Enterprise Login Simple
+  await testEndpoint('/api/login-enterprise-simple', 'POST', credentials);
+
+  // Test 9: Missing Authentication Endpoints
+  console.log('\n🔍 Testing Authentication Endpoints (should now be working):');
+  await testEndpoint('/api/me', 'GET');
+  await testEndpoint('/api/register', 'POST', credentials);
+  await testEndpoint('/api/logout', 'POST');
+  await testEndpoint('/api/refresh', 'POST', { refreshToken: 'test-token' });
+
   console.log('\n🏁 Tests completed');
 }
 

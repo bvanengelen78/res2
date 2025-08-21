@@ -166,6 +166,33 @@ const checkSupabaseAvailable = () => {
 
 // Database service functions
 const DatabaseService = {
+  // Generic query method for raw SQL queries
+  async query(sql, params = []) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Executing raw SQL query', {
+        sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
+        paramCount: params.length
+      });
+
+      // Use Supabase RPC for raw SQL queries
+      const { data, error } = await supabase.rpc('execute_sql', {
+        query: sql,
+        params: params
+      });
+
+      if (error) {
+        Logger.error('Failed to execute SQL query', error, { sql, params });
+        throw new Error(`Database query error: ${error.message}`);
+      }
+
+      Logger.info('SQL query executed successfully', {
+        resultCount: Array.isArray(data) ? data.length : 1
+      });
+      return data || [];
+    });
+  },
+
   // Resources with enhanced error handling and retry logic
   async getResources() {
     return withRetry(async () => {
