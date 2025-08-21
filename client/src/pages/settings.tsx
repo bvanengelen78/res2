@@ -45,16 +45,18 @@ interface EditModalProps<T> {
   title: string;
   schema: z.ZodSchema<any>;
   fields: { name: string; label: string; type: 'input' | 'textarea'; description?: string }[];
+  isLoading?: boolean;
 }
 
-function EditModal<T extends { id?: number; name: string; description?: string }>({ 
-  isOpen, 
-  onClose, 
-  item, 
-  onSave, 
-  title, 
-  schema, 
-  fields 
+function EditModal<T extends { id?: number; name: string; description?: string }>({
+  isOpen,
+  onClose,
+  item,
+  onSave,
+  title,
+  schema,
+  fields,
+  isLoading = false
 }: EditModalProps<T>) {
   const form = useForm({
     resolver: zodResolver(schema),
@@ -116,11 +118,11 @@ function EditModal<T extends { id?: number; name: string; description?: string }
             ))}
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {item ? "Update" : "Create"}
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Saving..." : (item ? "Update" : "Create")}
               </Button>
             </DialogFooter>
           </form>
@@ -324,6 +326,7 @@ function OgsmChartersSection() {
           { name: "name", label: "Name", type: "input" },
           { name: "description", label: "Description", type: "textarea", description: "Optional description for this charter" },
         ]}
+        isLoading={createMutation.isPending || updateMutation.isPending}
       />
     </div>
   );
@@ -523,6 +526,7 @@ function DepartmentsSection() {
           { name: "name", label: "Name", type: "input" },
           { name: "description", label: "Description", type: "textarea", description: "Optional description for this department" },
         ]}
+        isLoading={createMutation.isPending || updateMutation.isPending}
       />
     </div>
   );
@@ -555,12 +559,39 @@ function NotificationSettingsSection() {
         body: JSON.stringify(data),
       });
     },
+    onMutate: async ({ id, data }) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ["/api/settings/notifications"] });
+
+      // Snapshot the previous value
+      const previousSettings = queryClient.getQueryData<NotificationSettings[]>(["/api/settings/notifications"]);
+
+      // Optimistically update to the new value
+      if (previousSettings) {
+        const updatedSettings = previousSettings.map(setting =>
+          setting.id === id ? { ...setting, ...data } : setting
+        );
+        queryClient.setQueryData(["/api/settings/notifications"], updatedSettings);
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousSettings };
+    },
     onSuccess: () => {
+      // Invalidate and refetch to ensure we have the latest data
       queryClient.invalidateQueries({ queryKey: ["/api/settings/notifications"] });
       toast({ title: "Success", description: "Notification settings updated successfully." });
     },
-    onError: () => {
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousSettings) {
+        queryClient.setQueryData(["/api/settings/notifications"], context.previousSettings);
+      }
       toast({ title: "Error", description: "Failed to update notification settings.", variant: "destructive" });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure we have the correct data
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/notifications"] });
     },
   });
 
