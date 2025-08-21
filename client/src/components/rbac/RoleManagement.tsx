@@ -165,8 +165,17 @@ export function RoleManagement() {
 
   // Queries
   const { data: users, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useQuery({
-    queryKey: ["/api/rbac/users"],
-    queryFn: () => apiRequest("/api/rbac/users"),
+    queryKey: ["/api/rbac-users"],
+    queryFn: async () => {
+      const response = await apiRequest("/api/rbac-users");
+      // Extract data array from API response wrapper {success: true, data: Array, timestamp: '...'}
+      if (response && typeof response === 'object' && Array.isArray(response.data)) {
+        return response.data;
+      }
+      // Fallback for unexpected response format
+      console.warn('[ROLE_MANAGEMENT] Unexpected users response format:', response);
+      return [];
+    },
     retry: (failureCount, error) => {
       // Don't retry on timeout or connection errors more than once
       if (error?.message?.includes('timeout') || error?.message?.includes('connection')) {
