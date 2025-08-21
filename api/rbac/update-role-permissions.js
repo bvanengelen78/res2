@@ -66,7 +66,8 @@ const updateRolePermissionsHandler = async (req, res, { user, validatedData }) =
 // Export with middleware
 module.exports = withMiddleware(updateRolePermissionsHandler, {
   requireAuth: true,
-  validateInput: updateRolePermissionsSchema,
+  allowedMethods: ['POST'],
+  validateSchema: updateRolePermissionsSchema,
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 5 // 5 permission updates per minute

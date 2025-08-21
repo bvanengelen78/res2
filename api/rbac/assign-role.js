@@ -170,7 +170,8 @@ const assignRoleHandler = async (req, res, { user, validatedData }) => {
 // Export with middleware
 module.exports = withMiddleware(assignRoleHandler, {
   requireAuth: true,
-  validateInput: assignRoleSchema,
+  allowedMethods: ['POST'],
+  validateSchema: assignRoleSchema,
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 10 // 10 role assignments per minute

@@ -142,7 +142,8 @@ const removeRoleHandler = async (req, res, { user, validatedData }) => {
 // Export with middleware
 module.exports = withMiddleware(removeRoleHandler, {
   requireAuth: true,
-  validateInput: removeRoleSchema,
+  allowedMethods: ['POST'],
+  validateSchema: removeRoleSchema,
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 10 // 10 role removals per minute

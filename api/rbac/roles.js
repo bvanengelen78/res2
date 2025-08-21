@@ -62,7 +62,8 @@ const rbacRolesHandler = async (req, res, { user }) => {
 // Export with middleware
 module.exports = withMiddleware(rbacRolesHandler, {
   requireAuth: true,
-  validateInput: false,
+  allowedMethods: ['GET'],
+  validateSchema: null,
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 30 // 30 requests per minute
