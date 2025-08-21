@@ -158,26 +158,67 @@ async function updateLastLogin(userId) {
   }
 }
 
-// Get resource data
-async function getResourceData(resourceId) {
+// Get resource data with intelligent fallback for users without resource records
+async function getResourceData(resourceId, userEmail) {
   try {
-    if (!supabase || !resourceId) {
-      return { id: resourceId || 1, name: 'Test User', role: 'Developer' };
+    // If we have a resourceId and Supabase is available, try to fetch from database
+    if (supabase && resourceId) {
+      const { data, error } = await supabase
+        .from('resources')
+        .select('id, name, role')
+        .eq('id', resourceId)
+        .single();
+
+      if (!error && data) {
+        return data;
+      }
     }
 
-    const { data, error } = await supabase
-      .from('resources')
-      .select('id, name, role')
-      .eq('id', resourceId)
-      .single();
+    // Fallback: Create meaningful user data from email
+    const displayName = userEmail ? createDisplayNameFromEmail(userEmail) : 'User';
+    const role = userEmail && userEmail.includes('admin') ? 'Administrator' : 'User';
 
-    if (error || !data) {
-      return { id: resourceId, name: 'Test User', role: 'Developer' };
-    }
-
-    return data;
+    return {
+      id: resourceId || null,
+      name: displayName,
+      role: role
+    };
   } catch (error) {
-    return { id: resourceId || 1, name: 'Test User', role: 'Developer' };
+    // Fallback: Create meaningful user data from email
+    const displayName = userEmail ? createDisplayNameFromEmail(userEmail) : 'User';
+    const role = userEmail && userEmail.includes('admin') ? 'Administrator' : 'User';
+
+    return {
+      id: resourceId || null,
+      name: displayName,
+      role: role
+    };
+  }
+}
+
+// Helper function to create a display name from email
+function createDisplayNameFromEmail(email) {
+  if (!email) return 'User';
+
+  // Extract the part before @ and clean it up
+  const localPart = email.split('@')[0];
+
+  // Handle common patterns
+  if (localPart.includes('.')) {
+    // Convert "john.doe" to "John Doe"
+    return localPart
+      .split('.')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  } else if (localPart.includes('_')) {
+    // Convert "john_doe" to "John Doe"
+    return localPart
+      .split('_')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  } else {
+    // Convert "admin" to "Admin"
+    return localPart.charAt(0).toUpperCase() + localPart.slice(1).toLowerCase();
   }
 }
 
@@ -277,8 +318,8 @@ module.exports = async function handler(req, res) {
     // Update last login
     await updateLastLogin(user.id);
 
-    // Get resource data
-    const resourceData = await getResourceData(user.resource_id);
+    // Get resource data with user email for intelligent fallback
+    const resourceData = await getResourceData(user.resource_id, user.email);
 
     // Prepare response
     const responseData = {
