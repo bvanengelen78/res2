@@ -86,67 +86,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
 
-    // Retry configuration for handling temporary server issues
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1 second
+    try {
+      // Retry configuration for handling temporary server issues
+      const maxRetries = 3;
+      const retryDelay = 1000; // 1 second
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[AUTH] Login attempt ${attempt}/${maxRetries}`, {
-          email: credentials.email,
-          rememberMe: credentials.rememberMe
-        });
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`[AUTH] Login attempt ${attempt}/${maxRetries}`, {
+            email: credentials.email,
+            rememberMe: credentials.rememberMe
+          });
 
-        // Use enterprise authentication endpoint with database integration
-        const response = await apiRequest('/api/login-enterprise-simple', {
-          method: 'POST',
-          body: JSON.stringify(credentials),
-        });
+          // Use enterprise authentication endpoint with database integration
+          const response = await apiRequest('/api/login-enterprise-simple', {
+            method: 'POST',
+            body: JSON.stringify(credentials),
+          });
 
-        const { user, tokens } = response;
+          const { user, tokens } = response;
 
-        // Validate response structure
-        if (!user || !tokens || !tokens.accessToken || !tokens.refreshToken) {
-          throw new Error('Invalid login response: missing user or tokens');
-        }
+          // Validate response structure
+          if (!user || !tokens || !tokens.accessToken || !tokens.refreshToken) {
+            throw new Error('Invalid login response: missing user or tokens');
+          }
 
-        // Store tokens
-        localStorage.setItem(TOKEN_KEY, tokens.accessToken);
-        localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+          // Store tokens
+          localStorage.setItem(TOKEN_KEY, tokens.accessToken);
+          localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
 
-        setUser(user);
+          setUser(user);
 
-        console.log('[AUTH] Login successful', {
-          userId: user.id,
-          email: user.email,
-          roles: user.roles?.map(r => r.role),
-          attempt
-        });
+          console.log('[AUTH] Login successful', {
+            userId: user.id,
+            email: user.email,
+            roles: user.roles?.map(r => r.role),
+            attempt
+          });
 
-        return; // Success - exit retry loop
+          return; // Success - exit retry loop
 
-      } catch (error) {
-        console.error(`[AUTH] Login attempt ${attempt} failed:`, {
-          error: error.message,
-          attempt,
-          maxRetries
-        });
+        } catch (error) {
+          console.error(`[AUTH] Login attempt ${attempt} failed:`, {
+            error: error.message,
+            attempt,
+            maxRetries
+          });
 
-        // If this is the last attempt, throw the error
-        if (attempt === maxRetries) {
-          console.error('[AUTH] All login attempts failed', error);
-          throw error;
-        }
+          // If this is the last attempt, throw the error
+          if (attempt === maxRetries) {
+            console.error('[AUTH] All login attempts failed', error);
+            throw error;
+          }
 
-        // Wait before retrying (only for server errors, not auth errors)
-        if (error.message.includes('500') || error.message.includes('Internal server error')) {
-          console.log(`[AUTH] Retrying login in ${retryDelay}ms due to server error...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
-        } else {
-          // For auth errors (401, 400), don't retry
-          throw error;
+          // Wait before retrying (only for server errors, not auth errors)
+          if (error.message.includes('500') || error.message.includes('Internal server error')) {
+            console.log(`[AUTH] Retrying login in ${retryDelay}ms due to server error...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          } else {
+            // For auth errors (401, 400), don't retry
+            throw error;
+          }
         }
       }
+    } catch (error) {
+      console.error('[AUTH] Login failed:', error);
+      throw error;
+    } finally {
+      // Always set loading to false, regardless of success or failure
+      setIsLoading(false);
     }
   };
 
