@@ -674,6 +674,238 @@ const DatabaseService = {
     });
   },
 
+  // User management methods
+  async getUser(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching user by ID', { userId });
+
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          resources (
+            id,
+            name,
+            email,
+            role,
+            department
+          )
+        `)
+        .eq('id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Logger.info('User not found', { userId });
+          return null;
+        }
+        Logger.error('Failed to fetch user', error, { userId });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const user = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully fetched user', { userId, email: user.email });
+      return user;
+    });
+  },
+
+  async getUserByEmail(email) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching user by email', { email });
+
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          resources (
+            id,
+            name,
+            email,
+            role,
+            department
+          )
+        `)
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Logger.info('User not found by email', { email });
+          return null;
+        }
+        Logger.error('Failed to fetch user by email', error, { email });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const user = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully fetched user by email', { userId: user.id, email });
+      return user;
+    });
+  },
+
+  async createUser(userData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating user', { email: userData.email });
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          email: userData.email,
+          password: userData.password,
+          resource_id: userData.resourceId || null,
+          is_active: userData.isActive !== undefined ? userData.isActive : true,
+          email_verified: userData.emailVerified !== undefined ? userData.emailVerified : false
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to create user', error, { email: userData.email });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const user = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['createdAt', 'updatedAt']);
+      Logger.info('Successfully created user', { userId: user.id, email: user.email });
+      return user;
+    });
+  },
+
+  async updateUserPassword(userId, hashedPassword) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Updating user password', { userId });
+
+      const { error } = await supabase
+        .from('users')
+        .update({ password: hashedPassword })
+        .eq('id', userId);
+
+      if (error) {
+        Logger.error('Failed to update user password', error, { userId });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      Logger.info('Successfully updated user password', { userId });
+      return true;
+    });
+  },
+
+  async assignUserRole(roleData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Assigning user role', {
+        userId: roleData.userId,
+        role: roleData.role,
+        resourceId: roleData.resourceId
+      });
+
+      const { data, error } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: roleData.userId,
+          role: roleData.role,
+          resource_id: roleData.resourceId || null,
+          assigned_by: roleData.assignedBy,
+          assigned_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to assign user role', error, {
+          userId: roleData.userId,
+          role: roleData.role
+        });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const userRole = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['assignedAt']);
+      Logger.info('Successfully assigned user role', {
+        roleId: userRole.id,
+        userId: roleData.userId,
+        role: roleData.role
+      });
+      return userRole;
+    });
+  },
+
+  async createPasswordResetAudit(auditData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating password reset audit entry', {
+        adminUserId: auditData.adminUserId,
+        targetUserId: auditData.targetUserId
+      });
+
+      const { data, error } = await supabase
+        .from('password_reset_audit')
+        .insert({
+          id: auditData.id,
+          admin_user_id: auditData.adminUserId,
+          target_user_id: auditData.targetUserId,
+          action: auditData.action,
+          ip_address: auditData.ipAddress,
+          user_agent: auditData.userAgent,
+          timestamp: auditData.timestamp.toISOString(),
+          success: auditData.success,
+          details: auditData.details
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Failed to create password reset audit', error, {
+          adminUserId: auditData.adminUserId,
+          targetUserId: auditData.targetUserId
+        });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const audit = SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(data), ['timestamp', 'createdAt']);
+      Logger.info('Successfully created password reset audit', { auditId: audit.id });
+      return audit;
+    });
+  },
+
+  async getPasswordResetAuditForUser(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching password reset audit for user', { userId });
+
+      const { data, error } = await supabase
+        .from('password_reset_audit')
+        .select(`
+          *,
+          admin_user:users!password_reset_audit_admin_user_id_fkey (
+            id,
+            email
+          )
+        `)
+        .eq('target_user_id', userId)
+        .order('timestamp', { ascending: false });
+
+      if (error) {
+        Logger.error('Failed to fetch password reset audit', error, { userId });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      const auditTrail = (data || []).map(entry =>
+        SupabaseUtils.parseDates(SupabaseUtils.toCamelCase(entry), ['timestamp', 'createdAt'])
+      );
+
+      Logger.info('Successfully fetched password reset audit', {
+        userId,
+        entryCount: auditTrail.length
+      });
+      return auditTrail;
+    });
+  },
+
   // Settings API - Departments management
   async getDepartments() {
     return withRetry(async () => {
