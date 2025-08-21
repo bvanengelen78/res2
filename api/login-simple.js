@@ -161,6 +161,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
+  } catch (error) {
     console.error('[LOGIN_SIMPLE] Critical error in simplified login', {
       error: error.message,
       stack: error.stack,
