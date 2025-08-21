@@ -56,6 +56,7 @@ module.exports = async function handler(req, res) {
       console.log('[RBAC_USERS] Querying database for real user role data');
 
       // Get all users with their role assignments and resource information
+      // Note: We need to specify the exact foreign key because user_roles has two FKs to users table
       const { data: userRoles, error: userRolesError } = await supabase
         .from('user_roles')
         .select(`
@@ -64,8 +65,8 @@ module.exports = async function handler(req, res) {
           resource_id,
           role,
           assigned_at,
-          users!user_roles_user_id_fkey(id, email),
-          resources(id, name, email, role, department)
+          user:users!user_roles_user_id_fkey(id, email),
+          resource:resources(id, name, email, role, department)
         `)
         .order('assigned_at', { ascending: true });
 
@@ -80,8 +81,8 @@ module.exports = async function handler(req, res) {
       const userMap = new Map();
 
       for (const userRole of userRoles || []) {
-        const userId = userRole.users.id;
-        const userEmail = userRole.users.email;
+        const userId = userRole.user.id;
+        const userEmail = userRole.user.email;
 
         if (!userMap.has(userId)) {
           userMap.set(userId, {
@@ -90,7 +91,7 @@ module.exports = async function handler(req, res) {
             resourceId: userRole.resource_id,
             roles: [],
             permissions: new Set(),
-            resource: userRole.resources
+            resource: userRole.resource
           });
         }
 
@@ -108,8 +109,8 @@ module.exports = async function handler(req, res) {
         rolePermissions.forEach(permission => user.permissions.add(permission));
 
         // Update resource info if this role has a resource
-        if (userRole.resources && !user.resource) {
-          user.resource = userRole.resources;
+        if (userRole.resource && !user.resource) {
+          user.resource = userRole.resource;
         }
       }
 
