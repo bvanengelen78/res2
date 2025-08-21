@@ -190,7 +190,16 @@ export function RoleManagement() {
 
   const { data: roles, isLoading: rolesLoading } = useQuery({
     queryKey: ["/api/rbac/roles"],
-    queryFn: () => apiRequest("/api/rbac/roles"),
+    queryFn: async () => {
+      const response = await apiRequest("/api/rbac/roles");
+      // Extract data array from API response wrapper {success: true, data: Array, timestamp: '...'}
+      if (response && typeof response === 'object' && Array.isArray(response.data)) {
+        return response.data;
+      }
+      // Fallback for unexpected response format
+      console.warn('[ROLE_MANAGEMENT] Unexpected roles response format:', response);
+      return [];
+    },
   });
 
   const { data: resources } = useQuery({
@@ -533,32 +542,44 @@ export function RoleManagement() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {roles?.map((roleInfo: RoleInfo) => (
-                <div key={roleInfo.role} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold">{getRoleDisplayName(roleInfo.role)}</h3>
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${getRoleBadgeColor(roleInfo.role)} whitespace-nowrap max-w-full truncate`}>
-                        {roleInfo.role}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditRoleDialog(roleInfo)}
-                      >
-                        <Edit className="h-3 w-3" />
-                      </Button>
+              {Array.isArray(roles) && roles.length > 0 ? (
+                roles.map((roleInfo: RoleInfo) => (
+                  <div key={roleInfo.role} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold">{getRoleDisplayName(roleInfo.role)}</h3>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${getRoleBadgeColor(roleInfo.role)} whitespace-nowrap max-w-full truncate`}>
+                          {roleInfo.role}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditRoleDialog(roleInfo)}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.isArray(roleInfo.permissions) ? (
+                        roleInfo.permissions.map((permission) => (
+                          <Badge key={permission} variant="secondary" className="text-xs">
+                            {getPermissionDisplayName(permission)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-gray-500">No permissions defined</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {roleInfo.permissions.map((permission) => (
-                      <Badge key={permission} variant="secondary" className="text-xs">
-                        {getPermissionDisplayName(permission)}
-                      </Badge>
-                    ))}
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">
+                    {rolesLoading ? 'Loading roles...' : 'No roles available'}
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -598,7 +619,8 @@ export function RoleManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users?.map((user: User) => (
+                {Array.isArray(users) && users.length > 0 ? (
+                  users.map((user: User) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">
                       <div>
@@ -619,27 +641,37 @@ export function RoleManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {user.roles.map((role) => (
-                          <Badge
-                            key={`${role.role}-${role.resourceId || 'global'}`}
-                            className={`${getRoleBadgeColor(role.role)} whitespace-nowrap max-w-full truncate`}
-                          >
-                            {getRoleDisplayName(role.role)}
-                          </Badge>
-                        ))}
+                        {Array.isArray(user.roles) && user.roles.length > 0 ? (
+                          user.roles.map((role) => (
+                            <Badge
+                              key={`${role.role}-${role.resourceId || 'global'}`}
+                              className={`${getRoleBadgeColor(role.role)} whitespace-nowrap max-w-full truncate`}
+                            >
+                              {getRoleDisplayName(role.role)}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-gray-500">No roles</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {user.permissions.slice(0, 3).map((permission) => (
-                          <Badge key={permission} variant="outline" className="text-xs">
-                            {getPermissionDisplayName(permission)}
-                          </Badge>
-                        ))}
-                        {user.permissions.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{user.permissions.length - 3} more
-                          </Badge>
+                        {Array.isArray(user.permissions) && user.permissions.length > 0 ? (
+                          <>
+                            {user.permissions.slice(0, 3).map((permission) => (
+                              <Badge key={permission} variant="outline" className="text-xs">
+                                {getPermissionDisplayName(permission)}
+                              </Badge>
+                            ))}
+                            {user.permissions.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{user.permissions.length - 3} more
+                              </Badge>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-500">No permissions</span>
                         )}
                       </div>
                     </TableCell>
@@ -677,7 +709,16 @@ export function RoleManagement() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <p className="text-gray-500">
+                        {usersLoading ? 'Loading users...' : 'No users available'}
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -713,11 +754,17 @@ export function RoleManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {resources?.map((resource: any) => (
-                            <SelectItem key={resource.id} value={resource.id.toString()}>
-                              {resource.name} ({resource.email})
+                          {Array.isArray(resources) && resources.length > 0 ? (
+                            resources.map((resource: any) => (
+                              <SelectItem key={resource.id} value={resource.id.toString()}>
+                                {resource.name} ({resource.email})
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>
+                              No resources available
                             </SelectItem>
-                          ))}
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -738,11 +785,17 @@ export function RoleManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {roles?.map((roleInfo: RoleInfo) => (
-                            <SelectItem key={roleInfo.role} value={roleInfo.role}>
-                              {getRoleDisplayName(roleInfo.role)}
+                          {Array.isArray(roles) && roles.length > 0 ? (
+                            roles.map((roleInfo: RoleInfo) => (
+                              <SelectItem key={roleInfo.role} value={roleInfo.role}>
+                                {getRoleDisplayName(roleInfo.role)}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>
+                              No roles available
                             </SelectItem>
-                          ))}
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -775,7 +828,8 @@ export function RoleManagement() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                {selectedUser?.roles.map((role) => (
+                {Array.isArray(selectedUser?.roles) && selectedUser.roles.length > 0 ? (
+                  selectedUser.roles.map((role) => (
                   <div
                     key={`${role.role}-${role.resourceId || 'global'}`}
                     className="flex items-center justify-between p-3 border rounded-lg"
@@ -800,7 +854,12 @@ export function RoleManagement() {
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500">No roles to remove</p>
+                  </div>
+                )}
               </div>
             </div>
 
