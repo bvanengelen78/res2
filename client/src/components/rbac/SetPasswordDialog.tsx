@@ -61,10 +61,10 @@ export function SetPasswordDialog({ user, isOpen, onClose }: SetPasswordDialogPr
     }, 150);
   };
 
-  // Password reset mutation
+  // Password reset mutation (temporary endpoint via ping)
   const resetPasswordMutation = useMutation({
     mutationFn: async (userId: number): Promise<{ password: string }> => {
-      const response = await apiRequest(`/api/admin-password-reset?userId=${userId}`, {
+      const response = await apiRequest(`/api/ping?action=reset-password&userId=${userId}`, {
         method: 'POST',
       });
       return response;
