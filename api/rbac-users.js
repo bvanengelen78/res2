@@ -64,7 +64,7 @@ module.exports = async function handler(req, res) {
           resource_id,
           role,
           assigned_at,
-          users!inner(id, email),
+          users!user_roles_user_id_fkey(id, email),
           resources(id, name, email, role, department)
         `)
         .order('assigned_at', { ascending: true });
