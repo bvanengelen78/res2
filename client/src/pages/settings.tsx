@@ -139,7 +139,14 @@ function OgsmChartersSection() {
   const { data: charters = [], isLoading, error } = useQuery<OgsmCharter[]>({
     queryKey: ["/api/settings/ogsm-charters"],
     queryFn: async () => {
-      return await apiRequest("/api/settings/ogsm-charters");
+      const response = await apiRequest("/api/settings/ogsm-charters");
+      // Extract data array from API response wrapper {success: true, data: Array, timestamp: '...'}
+      if (response && typeof response === 'object' && Array.isArray(response.data)) {
+        return response.data;
+      }
+      // Fallback for unexpected response format
+      console.warn('[SETTINGS] Unexpected OGSM charters response format:', response);
+      return [];
     },
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -331,7 +338,14 @@ function DepartmentsSection() {
   const { data: departments = [], isLoading, error } = useQuery<Department[]>({
     queryKey: ["/api/settings/departments"],
     queryFn: async () => {
-      return await apiRequest("/api/settings/departments");
+      const response = await apiRequest("/api/settings/departments");
+      // Extract data array from API response wrapper {success: true, data: Array, timestamp: '...'}
+      if (response && typeof response === 'object' && Array.isArray(response.data)) {
+        return response.data;
+      }
+      // Fallback for unexpected response format
+      console.warn('[SETTINGS] Unexpected departments response format:', response);
+      return [];
     },
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -521,7 +535,14 @@ function NotificationSettingsSection() {
   const { data: settings = [], isLoading, error } = useQuery<NotificationSettings[]>({
     queryKey: ["/api/settings/notifications"],
     queryFn: async () => {
-      return await apiRequest("/api/settings/notifications");
+      const response = await apiRequest("/api/settings/notifications");
+      // Extract data array from API response wrapper {success: true, data: Array, timestamp: '...'}
+      if (response && typeof response === 'object' && Array.isArray(response.data)) {
+        return response.data;
+      }
+      // Fallback for unexpected response format
+      console.warn('[SETTINGS] Unexpected notifications response format:', response);
+      return [];
     },
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
