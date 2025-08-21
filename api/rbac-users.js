@@ -50,53 +50,128 @@ module.exports = async function handler(req, res) {
     console.log('[RBAC_USERS] Starting request');
     console.log('[RBAC_USERS] Supabase available:', !!supabase);
 
-    // Always use fallback data for now to ensure the endpoint works
-    console.log('[RBAC_USERS] Using fallback data for reliability');
+    let users = [];
 
-    const fallbackUsers = [
-      {
-        id: 1,
-        email: 'admin@resourceflow.com',
-        resourceId: null,
-        roles: [{ id: 1, role: 'admin', resourceId: null }],
-        permissions: ROLE_PERMISSIONS['admin'],
-        resource: null
-      },
-      {
-        id: 2,
-        email: 'rob.beckers@swisssense.nl',
-        resourceId: 2,
-        roles: [{ id: 2, role: 'regular_user', resourceId: 2 }],
-        permissions: ROLE_PERMISSIONS['regular_user'],
-        resource: {
-          id: 2,
-          name: 'Rob Beckers',
-          email: 'rob.beckers@swisssense.nl',
-          role: 'Domain Architect',
-          department: 'IT Architecture & Delivery'
+    if (supabase) {
+      console.log('[RBAC_USERS] Querying database for real user role data');
+
+      // Get all users with their role assignments and resource information
+      const { data: userRoles, error: userRolesError } = await supabase
+        .from('user_roles')
+        .select(`
+          id,
+          user_id,
+          resource_id,
+          role,
+          assigned_at,
+          users!inner(id, email),
+          resources(id, name, email, role, department)
+        `)
+        .order('assigned_at', { ascending: true });
+
+      if (userRolesError) {
+        console.error('[RBAC_USERS] Database query error:', userRolesError);
+        throw userRolesError;
+      }
+
+      console.log('[RBAC_USERS] Raw user roles data:', userRoles?.length || 0, 'role assignments');
+
+      // Group roles by user and build the response structure
+      const userMap = new Map();
+
+      for (const userRole of userRoles || []) {
+        const userId = userRole.users.id;
+        const userEmail = userRole.users.email;
+
+        if (!userMap.has(userId)) {
+          userMap.set(userId, {
+            id: userId,
+            email: userEmail,
+            resourceId: userRole.resource_id,
+            roles: [],
+            permissions: new Set(),
+            resource: userRole.resources
+          });
         }
-      },
-      {
-        id: 3,
-        email: 'richard.voorburg@swisssense.nl',
-        resourceId: 21,
-        roles: [{ id: 3, role: 'admin', resourceId: 21 }],
-        permissions: ROLE_PERMISSIONS['admin'],
-        resource: {
-          id: 21,
-          name: 'Richard Voorburg',
-          email: 'richard.voorburg@swisssense.nl',
-          role: 'Manager Change',
-          department: 'IT Architecture & Delivery'
+
+        const user = userMap.get(userId);
+
+        // Add this role to the user's roles array
+        user.roles.push({
+          id: userRole.id,
+          role: userRole.role,
+          resourceId: userRole.resource_id
+        });
+
+        // Add permissions for this role
+        const rolePermissions = ROLE_PERMISSIONS[userRole.role] || [];
+        rolePermissions.forEach(permission => user.permissions.add(permission));
+
+        // Update resource info if this role has a resource
+        if (userRole.resources && !user.resource) {
+          user.resource = userRole.resources;
         }
       }
-    ];
 
-    console.log('[RBAC_USERS] Success:', fallbackUsers.length, 'users returned');
+      // Convert to array and finalize permissions
+      users = Array.from(userMap.values()).map(user => ({
+        ...user,
+        permissions: Array.from(user.permissions)
+      }));
+
+      console.log('[RBAC_USERS] Processed users:', users.length);
+      users.forEach(user => {
+        console.log(`[RBAC_USERS] User ${user.email}: ${user.roles.length} roles`);
+      });
+
+    } else {
+      console.log('[RBAC_USERS] Database unavailable, using fallback data');
+
+      users = [
+        {
+          id: 1,
+          email: 'admin@resourceflow.com',
+          resourceId: null,
+          roles: [{ id: 1, role: 'admin', resourceId: null }],
+          permissions: ROLE_PERMISSIONS['admin'],
+          resource: null
+        },
+        {
+          id: 2,
+          email: 'rob.beckers@swisssense.nl',
+          resourceId: 2,
+          roles: [{ id: 2, role: 'regular_user', resourceId: 2 }],
+          permissions: ROLE_PERMISSIONS['regular_user'],
+          resource: {
+            id: 2,
+            name: 'Rob Beckers',
+            email: 'rob.beckers@swisssense.nl',
+            role: 'Domain Architect',
+            department: 'IT Architecture & Delivery'
+          }
+        },
+        {
+          id: 3,
+          email: 'richard.voorburg@swisssense.nl',
+          resourceId: 21,
+          roles: [{ id: 3, role: 'admin', resourceId: 21 }],
+          permissions: ROLE_PERMISSIONS['admin'],
+          resource: {
+            id: 21,
+            name: 'Richard Voorburg',
+            email: 'richard.voorburg@swisssense.nl',
+            role: 'Manager Change',
+            department: 'IT Architecture & Delivery'
+          }
+        }
+      ];
+    }
+
+    console.log('[RBAC_USERS] Success:', users.length, 'users returned');
 
     return res.status(200).json({
       success: true,
-      data: fallbackUsers,
+      data: users,
       timestamp: new Date().toISOString()
     });
 
