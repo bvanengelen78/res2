@@ -64,7 +64,7 @@ export function SetPasswordDialog({ user, isOpen, onClose }: SetPasswordDialogPr
   // Password reset mutation
   const resetPasswordMutation = useMutation({
     mutationFn: async (userId: number): Promise<{ password: string }> => {
-      const response = await apiRequest(`/api/admin-reset-password?userId=${userId}`, {
+      const response = await apiRequest(`/api/admin-password-reset?userId=${userId}`, {
         method: 'POST',
       });
       return response;
