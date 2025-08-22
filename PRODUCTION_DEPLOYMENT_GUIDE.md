@@ -25,7 +25,7 @@
 - **Build Time:** ~9 seconds (well under limits)
 - **Bundle Size:** 2.2MB (optimized)
 - **Static Assets:** Properly served from `/dist`
-- **Zero Configuration:** No custom vercel.json needed
+- **SPA Routing:** Custom vercel.json configured for client-side routing
 
 ---
 
@@ -44,6 +44,12 @@
 - **Authentication:** JWT with bcrypt
 - **CORS:** Enabled for all origins
 - **Error Handling:** Comprehensive with logging
+
+### **Routing Configuration**
+- **Client-Side Routing:** Wouter handles SPA navigation
+- **Server Configuration:** `vercel.json` ensures all non-API routes serve `index.html`
+- **Direct URL Access:** Fixed 404 errors for routes like `/projects/1` and `/resources/16`
+- **API Routes:** Properly preserved and handled by serverless functions
 
 ---
 
