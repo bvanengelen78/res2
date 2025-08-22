@@ -4,9 +4,13 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const { generateAccessToken, generateRefreshToken, JWT_CONFIG } = require('./lib/middleware');
+const { PasswordSecurityService } = require('./lib/password-security');
+const { SessionSecurityService } = require('./lib/session-security');
+const { InputValidationService, loginSchema } = require('./lib/input-validation');
+const { RateLimitingService, RATE_LIMIT_CONFIG } = require('./lib/rate-limiting');
 
-// Configuration
-const JWT_SECRET = process.env.JWT_SECRET;
+// Configuration validation is now handled by ConfigSecurityService
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -45,36 +49,7 @@ function log(level, message, context = {}) {
   }));
 }
 
-// Input validation
-function validateInput(body) {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'Request body must be valid JSON', code: 'INVALID_JSON' };
-  }
-
-  const { email, password, rememberMe } = body;
-
-  if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    return { valid: false, error: 'Valid email is required', code: 'INVALID_EMAIL' };
-  }
-
-  if (!password || typeof password !== 'string' || password.length === 0) {
-    return { valid: false, error: 'Password is required', code: 'INVALID_PASSWORD' };
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.trim())) {
-    return { valid: false, error: 'Invalid email format', code: 'INVALID_EMAIL_FORMAT' };
-  }
-
-  return {
-    valid: true,
-    data: {
-      email: email.trim().toLowerCase(),
-      password,
-      rememberMe: Boolean(rememberMe)
-    }
-  };
-}
+// Note: Input validation now handled by InputValidationService
 
 // Get user from database
 async function getUserByEmail(email) {
@@ -249,34 +224,96 @@ module.exports = async function handler(req, res) {
   try {
     log('info', 'Enterprise authentication request', requestContext);
 
-    // Input validation
-    const validation = validateInput(req.body);
-    if (!validation.valid) {
-      log('warn', 'Input validation failed', { ...requestContext, error: validation.error });
+    // Comprehensive input validation and sanitization
+    const validation = InputValidationService.validateInput(loginSchema, req.body);
+    if (!validation.success) {
+      log('warn', 'Input validation failed', {
+        ...requestContext,
+        error: validation.error,
+        details: validation.details
+      });
       return res.status(400).json({
         error: true,
         message: validation.error,
+        details: validation.details,
         code: validation.code,
         timestamp: new Date().toISOString()
       });
     }
 
     const { email, password, rememberMe } = validation.data;
+    const clientIP = requestContext.clientIP;
+    const userAgent = requestContext.userAgent;
 
-    // Check configuration
-    if (!JWT_SECRET) {
-      log('error', 'JWT_SECRET not configured', requestContext);
-      return res.status(500).json({
+    // Comprehensive rate limiting
+    const rateLimitResult = RateLimitingService.checkRateLimit(clientIP, 'auth_login', RATE_LIMIT_CONFIG.AUTH_LOGIN);
+    if (!rateLimitResult.allowed) {
+      log('security', 'Login blocked - rate limit exceeded', {
+        ...requestContext,
+        email,
+        limit: rateLimitResult.limit,
+        retryAfter: rateLimitResult.retryAfter
+      });
+      return res.status(429).json({
         error: true,
-        message: 'Authentication service unavailable',
-        code: 'SYSTEM_ERROR',
+        message: rateLimitResult.message,
+        code: 'RATE_LIMITED',
+        retryAfter: rateLimitResult.retryAfter,
+        limit: rateLimitResult.limit,
+        remaining: rateLimitResult.remaining,
         timestamp: new Date().toISOString()
       });
     }
 
+    // Detect suspicious activity
+    const suspiciousActivity = RateLimitingService.detectSuspiciousActivity('auth_login', clientIP, userAgent, { email });
+    if (suspiciousActivity.suspicious) {
+      log('security', 'Suspicious login activity detected', {
+        ...requestContext,
+        email,
+        reasons: suspiciousActivity.reasons,
+        requestCount: suspiciousActivity.requestCount
+      });
+      // Continue but with enhanced logging
+    }
+
+    // Check for rate limiting - IP-based
+    const ipLockout = SessionSecurityService.isLockedOut(clientIP, 'ip');
+    if (ipLockout.locked) {
+      log('security', 'Login blocked - IP rate limit exceeded', { ...requestContext, email, lockoutUntil: new Date(ipLockout.lockoutUntil).toISOString() });
+      return res.status(429).json({
+        error: true,
+        message: 'Too many login attempts. Please try again later.',
+        code: 'RATE_LIMITED',
+        retryAfter: Math.ceil((ipLockout.lockoutUntil - Date.now()) / 1000),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check for rate limiting - user-based
+    const userLockout = SessionSecurityService.isLockedOut(email, 'user');
+    if (userLockout.locked) {
+      log('security', 'Login blocked - user rate limit exceeded', { ...requestContext, email, lockoutUntil: new Date(userLockout.lockoutUntil).toISOString() });
+      return res.status(429).json({
+        error: true,
+        message: 'Account temporarily locked due to multiple failed attempts.',
+        code: 'ACCOUNT_LOCKED',
+        retryAfter: Math.ceil((userLockout.lockoutUntil - Date.now()) / 1000),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Configuration is validated by ConfigSecurityService on startup
+
     // Get user from database
     const user = await getUserByEmail(email);
     if (!user) {
+      // Record failed attempt for both IP and user using both services
+      SessionSecurityService.recordFailedAttempt(clientIP, 'ip');
+      SessionSecurityService.recordFailedAttempt(email, 'user');
+      RateLimitingService.recordFailedAttempt(clientIP, 'ip');
+      RateLimitingService.recordFailedAttempt(email, 'user');
+
       log('security', 'Authentication failed - user not found', { ...requestContext, email });
       return res.status(401).json({
         error: true,
@@ -286,10 +323,21 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Verify password
-    const passwordValid = await bcrypt.compare(password, user.password);
-    if (!passwordValid) {
-      log('security', 'Authentication failed - invalid password', { ...requestContext, userId: user.id, email });
+    // Verify password using secure password service
+    const passwordVerification = await PasswordSecurityService.verifyPassword(password, user.password);
+    if (!passwordVerification.success || !passwordVerification.isValid) {
+      // Record failed attempt for both IP and user using both services
+      SessionSecurityService.recordFailedAttempt(clientIP, 'ip');
+      SessionSecurityService.recordFailedAttempt(email, 'user');
+      RateLimitingService.recordFailedAttempt(clientIP, 'ip');
+      RateLimitingService.recordFailedAttempt(email, 'user');
+
+      log('security', 'Authentication failed - invalid password', {
+        ...requestContext,
+        userId: user.id,
+        email,
+        verificationError: passwordVerification.error
+      });
       return res.status(401).json({
         error: true,
         message: 'Invalid credentials',
@@ -298,22 +346,32 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Clear failed login attempts on successful authentication using both services
+    SessionSecurityService.clearFailedAttempts(clientIP, 'ip');
+    SessionSecurityService.clearFailedAttempts(email, 'user');
+    RateLimitingService.clearFailedAttempts(clientIP, 'ip');
+    RateLimitingService.clearFailedAttempts(email, 'user');
+
+    // Create secure session
+    const session = SessionSecurityService.createSession(user.id, userAgent, clientIP, rememberMe);
+
     // Get user roles and permissions
     const userRoles = await getUserRoles(user.id);
     const permissions = getPermissionsForRoles(userRoles);
 
-    // Generate JWT tokens
-    const accessToken = jwt.sign(
-      { user: { id: user.id, email: user.email, resourceId: user.resource_id } },
-      JWT_SECRET,
-      { expiresIn: rememberMe ? '30d' : '1d' }
-    );
+    // Generate standardized JWT tokens with session ID
+    const tokenPayload = {
+      userId: user.id,
+      email: user.email,
+      resourceId: user.resource_id,
+      roles: userRoles.map(r => r.role),
+      permissions: permissions,
+      sessionId: session.id,
+      rememberMe: rememberMe
+    };
 
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
 
     // Update last login
     await updateLastLogin(user.id);

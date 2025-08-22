@@ -3,9 +3,13 @@
 
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken, JWT_CONFIG } = require('./lib/middleware');
+const { InputValidationService, refreshTokenSchema } = require('./lib/input-validation');
 
-// Configuration
-const JWT_SECRET = process.env.JWT_SECRET;
+// Configuration validation
+if (!JWT_CONFIG.REFRESH_SECRET) {
+  throw new Error('JWT_REFRESH_SECRET must be configured for token refresh');
+}
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -62,25 +66,7 @@ function validateInput(body) {
   };
 }
 
-// Verify refresh token
-function verifyRefreshToken(token) {
-  try {
-    if (!JWT_SECRET) {
-      throw new Error('JWT_SECRET not configured');
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Check if this is a refresh token
-    if (!decoded.userId) {
-      throw new Error('Invalid refresh token format');
-    }
-
-    return { valid: true, decoded };
-  } catch (error) {
-    return { valid: false, error: error.message };
-  }
-}
+// Note: verifyRefreshToken is now imported from middleware
 
 // Get user data for new token
 async function getUserData(userId) {
@@ -148,13 +134,18 @@ module.exports = async function handler(req, res) {
   try {
     log('info', 'Token refresh request', requestContext);
 
-    // Input validation
-    const validation = validateInput(req.body);
-    if (!validation.valid) {
-      log('warn', 'Refresh validation failed', { ...requestContext, error: validation.error });
+    // Comprehensive input validation and sanitization
+    const validation = InputValidationService.validateInput(refreshTokenSchema, req.body);
+    if (!validation.success) {
+      log('warn', 'Refresh validation failed', {
+        ...requestContext,
+        error: validation.error,
+        details: validation.details
+      });
       return res.status(400).json({
         error: true,
         message: validation.error,
+        details: validation.details,
         code: validation.code,
         timestamp: new Date().toISOString()
       });
@@ -163,8 +154,8 @@ module.exports = async function handler(req, res) {
     const { refreshToken } = validation.data;
 
     // Check configuration
-    if (!JWT_SECRET) {
-      log('error', 'JWT_SECRET not configured', requestContext);
+    if (!JWT_CONFIG.REFRESH_SECRET) {
+      log('error', 'JWT_REFRESH_SECRET not configured', requestContext);
       return res.status(500).json({
         error: true,
         message: 'Token refresh service unavailable',
@@ -173,9 +164,9 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Verify refresh token
+    // Verify refresh token using standardized function
     const tokenResult = verifyRefreshToken(refreshToken);
-    if (!tokenResult.valid) {
+    if (!tokenResult.success) {
       log('warn', 'Invalid refresh token', { ...requestContext, error: tokenResult.error });
       return res.status(401).json({
         error: true,
@@ -185,24 +176,24 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const { decoded } = tokenResult;
+    const decoded = tokenResult.payload;
     const userId = decoded.userId;
 
     // Get current user data
     const userData = await getUserData(userId);
 
-    // Generate new tokens
-    const newAccessToken = jwt.sign(
-      { user: { id: userData.id, email: userData.email, resourceId: userData.resource_id } },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    // Generate new standardized tokens
+    const tokenPayload = {
+      userId: userData.id,
+      email: userData.email,
+      resourceId: userData.resource_id,
+      roles: userData.roles.map(r => r.role),
+      permissions: [], // Will be populated from roles if needed
+      rememberMe: false // Default for refresh
+    };
 
-    const newRefreshToken = jwt.sign(
-      { userId: userData.id },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const newAccessToken = generateAccessToken(tokenPayload);
+    const newRefreshToken = generateRefreshToken(tokenPayload);
 
     // Prepare response
     const responseData = {

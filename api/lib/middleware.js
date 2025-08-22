@@ -5,61 +5,337 @@ if (process.env.NODE_ENV !== 'production') {
 
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
+const { SessionSecurityService } = require('./session-security');
+const { ConfigSecurityService } = require('./config-security');
+const { securityLogger, SecureErrorHandler, LOGGING_CONFIG } = require('./security-logging');
+const { SecurityHeadersService, SECURITY_HEADERS_CONFIG } = require('./security-headers');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// Get secure configuration
+const secureConfig = ConfigSecurityService.getSecureConfig();
+const JWT_CONFIG = secureConfig.jwt;
 
-// CORS configuration
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Max-Age': '86400'
-};
+// Initialize secure configuration on module load
+try {
+  ConfigSecurityService.initialize();
+} catch (error) {
+  console.error('[MIDDLEWARE] Secure configuration initialization failed:', error.message);
+  if (process.env.NODE_ENV === 'production') {
+    throw error;
+  }
+}
 
-// Security headers
-const SECURITY_HEADERS = {
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'X-XSS-Protection': '1; mode=block',
-  'Referrer-Policy': 'strict-origin-when-cross-origin'
-};
+// Standardized JWT Token Structure
+const JWT_TOKEN_SCHEMA = z.object({
+  userId: z.number().positive(),
+  email: z.string().email(),
+  resourceId: z.number().positive().optional(),
+  roles: z.array(z.string()).optional(),
+  permissions: z.array(z.string()).optional(),
+  sessionId: z.string().optional(),
+  iat: z.number().optional(),
+  exp: z.number().optional(),
+  iss: z.string().optional(),
+  aud: z.string().optional()
+});
+
+// JWT Token Generation
+function generateAccessToken(payload) {
+  const tokenPayload = {
+    userId: payload.userId,
+    email: payload.email,
+    resourceId: payload.resourceId,
+    roles: payload.roles || [],
+    permissions: payload.permissions || [],
+    sessionId: payload.sessionId
+  };
+
+  return jwt.sign(tokenPayload, JWT_CONFIG.accessSecret, {
+    expiresIn: payload.rememberMe ? '30d' : JWT_CONFIG.accessExpiresIn,
+    algorithm: JWT_CONFIG.algorithm,
+    issuer: JWT_CONFIG.issuer,
+    audience: JWT_CONFIG.audience
+  });
+}
+
+function generateRefreshToken(payload) {
+  const tokenPayload = {
+    userId: payload.userId,
+    sessionId: payload.sessionId,
+    type: 'refresh'
+  };
+
+  return jwt.sign(tokenPayload, JWT_CONFIG.refreshSecret, {
+    expiresIn: payload.rememberMe ? '90d' : JWT_CONFIG.refreshExpiresIn,
+    algorithm: JWT_CONFIG.algorithm,
+    issuer: JWT_CONFIG.issuer,
+    audience: JWT_CONFIG.audience
+  });
+}
+
+// JWT Token Verification
+function verifyAccessToken(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_CONFIG.accessSecret, {
+      algorithms: [JWT_CONFIG.algorithm],
+      issuer: JWT_CONFIG.issuer,
+      audience: JWT_CONFIG.audience
+    });
+
+    // Validate token structure
+    const validation = JWT_TOKEN_SCHEMA.safeParse(decoded);
+    if (!validation.success) {
+      throw new Error('Invalid token structure');
+    }
+
+    return { success: true, payload: decoded };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+function verifyRefreshToken(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_CONFIG.refreshSecret, {
+      algorithms: [JWT_CONFIG.algorithm],
+      issuer: JWT_CONFIG.issuer,
+      audience: JWT_CONFIG.audience
+    });
+
+    if (decoded.type !== 'refresh') {
+      throw new Error('Invalid refresh token type');
+    }
+
+    return { success: true, payload: decoded };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Initialize security headers service
+SecurityHeadersService.initialize();
+
+// Authorization Service
+class AuthorizationService {
+
+  /**
+   * Check if user has required permission
+   */
+  static hasPermission(user, requiredPermission) {
+    if (!user || !user.permissions) return false;
+
+    // Admin users have all permissions
+    if (user.permissions.includes('system_admin')) return true;
+
+    // Check specific permission
+    return user.permissions.includes(requiredPermission);
+  }
+
+  /**
+   * Check if user has required role
+   */
+  static hasRole(user, requiredRole) {
+    if (!user || !user.roles) return false;
+
+    const userRoles = user.roles.map(r => typeof r === 'string' ? r : r.role);
+    return userRoles.includes(requiredRole);
+  }
+
+  /**
+   * Check if user has any of the required roles
+   */
+  static hasAnyRole(user, requiredRoles) {
+    if (!user || !user.roles) return false;
+
+    const userRoles = user.roles.map(r => typeof r === 'string' ? r : r.role);
+    return requiredRoles.some(role => userRoles.includes(role));
+  }
+
+  /**
+   * Check if user can access resource
+   */
+  static canAccessResource(user, resourceType, resourceId = null, action = 'read') {
+    if (!user) return false;
+
+    // System admin can access everything
+    if (this.hasPermission(user, 'system_admin')) return true;
+
+    // Resource-specific authorization
+    switch (resourceType) {
+      case 'user':
+        // Users can access their own data
+        if (resourceId && user.id === parseInt(resourceId)) return true;
+        // User management permission required for other users
+        return this.hasPermission(user, 'user_management');
+
+      case 'project':
+        // Project management permission required
+        return this.hasPermission(user, 'project_management');
+
+      case 'time_entry':
+        // Users can access their own time entries
+        if (action === 'read' || action === 'create') {
+          return this.hasPermission(user, 'time_logging');
+        }
+        // Modification requires additional permissions
+        return this.hasPermission(user, 'time_logging') &&
+               (this.hasRole(user, 'admin') || this.hasRole(user, 'manager'));
+
+      case 'report':
+        return this.hasPermission(user, 'reports');
+
+      case 'settings':
+        return this.hasPermission(user, 'settings');
+
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Get authorization middleware
+   */
+  static requirePermission(permission) {
+    return (req, res, next) => {
+      if (!req.user) {
+        return createErrorResponse(res, 401, 'Authentication required');
+      }
+
+      if (!this.hasPermission(req.user, permission)) {
+        securityLogger.logSecurityEvent(
+          LOGGING_CONFIG.SECURITY_EVENTS.PRIVILEGE_ESCALATION,
+          `Access denied - insufficient permissions`,
+          {
+            userId: req.user.id,
+            requiredPermission: permission,
+            userPermissions: req.user.permissions,
+            endpoint: req.url,
+            method: req.method,
+            ip: req.ip
+          },
+          'WARN'
+        );
+
+        return createErrorResponse(res, 403, 'Insufficient permissions');
+      }
+
+      next();
+    };
+  }
+
+  /**
+   * Get role-based authorization middleware
+   */
+  static requireRole(role) {
+    return (req, res, next) => {
+      if (!req.user) {
+        return createErrorResponse(res, 401, 'Authentication required');
+      }
+
+      if (!this.hasRole(req.user, role)) {
+        securityLogger.logSecurityEvent(
+          LOGGING_CONFIG.SECURITY_EVENTS.PRIVILEGE_ESCALATION,
+          `Access denied - insufficient role`,
+          {
+            userId: req.user.id,
+            requiredRole: role,
+            userRoles: req.user.roles,
+            endpoint: req.url,
+            method: req.method,
+            ip: req.ip
+          },
+          'WARN'
+        );
+
+        return createErrorResponse(res, 403, 'Insufficient role');
+      }
+
+      next();
+    };
+  }
+
+  /**
+   * Get resource-based authorization middleware
+   */
+  static requireResourceAccess(resourceType, action = 'read') {
+    return (req, res, next) => {
+      if (!req.user) {
+        return createErrorResponse(res, 401, 'Authentication required');
+      }
+
+      const resourceId = req.params.id || req.params.userId || req.params.resourceId;
+
+      if (!this.canAccessResource(req.user, resourceType, resourceId, action)) {
+        securityLogger.logSecurityEvent(
+          LOGGING_CONFIG.SECURITY_EVENTS.PRIVILEGE_ESCALATION,
+          `Access denied - insufficient resource access`,
+          {
+            userId: req.user.id,
+            resourceType,
+            resourceId,
+            action,
+            endpoint: req.url,
+            method: req.method,
+            ip: req.ip
+          },
+          'WARN'
+        );
+
+        return createErrorResponse(res, 403, 'Access denied');
+      }
+
+      next();
+    };
+  }
+}
 
 // Enhanced logging utility
+// Enhanced Logger using SecurityLogger
 const Logger = {
   info: (message, context = {}) => {
-    console.log(JSON.stringify({
-      level: 'info',
+    securityLogger.logSecurityEvent(
+      LOGGING_CONFIG.SECURITY_EVENTS.DATA_ACCESS,
       message,
-      timestamp: new Date().toISOString(),
-      ...context
-    }));
+      context,
+      'INFO'
+    );
   },
-  
+
   error: (message, error = null, context = {}) => {
-    console.error(JSON.stringify({
-      level: 'error',
+    securityLogger.logSecurityEvent(
+      LOGGING_CONFIG.SECURITY_EVENTS.SECURITY_VIOLATION,
       message,
-      error: error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      } : null,
-      timestamp: new Date().toISOString(),
-      ...context
-    }));
+      {
+        ...context,
+        error: error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : null
+      },
+      'ERROR'
+    );
   },
-  
+
   warn: (message, context = {}) => {
-    console.warn(JSON.stringify({
-      level: 'warn',
+    securityLogger.logSecurityEvent(
+      LOGGING_CONFIG.SECURITY_EVENTS.SUSPICIOUS_ACTIVITY,
       message,
-      timestamp: new Date().toISOString(),
-      ...context
-    }));
+      context,
+      'WARN'
+    );
+  },
+
+  security: (eventType, message, context = {}) => {
+    securityLogger.logSecurityEvent(
+      eventType,
+      message,
+      context,
+      'INFO'
+    );
   }
 };
 
-// Authentication middleware with real database queries
+// Authentication middleware with standardized JWT verification
 const authenticate = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -68,23 +344,39 @@ const authenticate = async (req) => {
 
   try {
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Enhanced token debugging
-    Logger.info('Token decoded successfully', {
-      tokenKeys: Object.keys(decoded),
-      hasUserId: !!decoded.userId,
-      userIdType: typeof decoded.userId,
-      userIdValue: decoded.userId,
-      hasUserObject: !!decoded.user,
-      userObjectId: decoded.user?.id,
-      email: decoded.email || decoded.user?.email,
-      roles: decoded.roles,
-      permissions: Array.isArray(decoded.permissions) ? decoded.permissions.length : 'not_array'
+    // Check if token is blacklisted
+    if (SessionSecurityService.isTokenBlacklisted(token)) {
+      Logger.warn('Blacklisted token attempted', { token: token.substring(0, 20) + '...' });
+      return { success: false, error: 'Token has been revoked' };
+    }
+
+    // Use standardized token verification
+    const verificationResult = verifyAccessToken(token);
+    if (!verificationResult.success) {
+      Logger.warn('Token verification failed', { error: verificationResult.error });
+      return { success: false, error: 'Invalid or expired token' };
+    }
+
+    const decoded = verificationResult.payload;
+
+    // Token is already validated by verifyAccessToken, extract standardized data
+    const userId = decoded.userId;
+    const email = decoded.email;
+    const resourceId = decoded.resourceId;
+    const roles = decoded.roles || [];
+    const permissions = decoded.permissions || [];
+
+    Logger.info('Token authenticated successfully', {
+      userId,
+      email,
+      resourceId,
+      rolesCount: roles.length,
+      permissionsCount: permissions.length,
+      sessionId: decoded.sessionId
     });
 
-    // Get real user data from database instead of using token data
-    // Use lazy loading to avoid circular dependency
+    // Get real user data from database for enhanced security
     let DatabaseService;
     try {
       DatabaseService = require('./supabase').DatabaseService;
@@ -92,56 +384,19 @@ const authenticate = async (req) => {
       Logger.error('Failed to load DatabaseService', error);
       // Continue without database validation for development
     }
-
-    // Handle both token formats and validate userId
-    // 1. Express.js server format: { userId: 123, ... }
-    // 2. Vercel serverless format: { user: { id: 123, ... } }
-    let userId = decoded.userId || decoded.user?.id;
-
-    // Convert string userId to number if needed
-    if (typeof userId === 'string' && userId !== 'undefined' && userId !== 'null') {
-      const parsedUserId = parseInt(userId, 10);
-      if (!isNaN(parsedUserId)) {
-        userId = parsedUserId;
-        Logger.info('Converted string userId to number', { originalUserId: decoded.userId, convertedUserId: userId });
-      }
-    }
-
-    // Validate userId
-    if (!userId || userId === 'undefined' || userId === 'null' || isNaN(userId)) {
-      Logger.error('Token missing or invalid userId', null, {
-        decoded: {
-          hasUserId: !!decoded.userId,
-          userIdType: typeof decoded.userId,
-          userIdValue: decoded.userId,
-          hasUserObject: !!decoded.user,
-          userObjectId: decoded.user?.id,
-          tokenKeys: Object.keys(decoded)
-        }
-      });
-      return { success: false, error: 'Invalid token structure - missing valid userId' };
-    }
-
-    Logger.info('Extracted valid userId from token', {
-      userId,
-      userIdType: typeof userId,
-      tokenFormat: decoded.userId ? 'express' : 'vercel',
-      email: decoded.email || decoded.user?.email
-    });
-
-    // Try to query real user data with roles and permissions
+    // Try to query real user data with roles and permissions for enhanced security
     try {
       if (!DatabaseService) {
-        Logger.warn('DatabaseService not available, falling back to token data');
+        Logger.warn('DatabaseService not available, using token data');
         throw new Error('DatabaseService not available');
       }
 
-      Logger.info('Attempting database query for user', { userId, userIdType: typeof userId });
+      Logger.info('Querying database for user verification', { userId });
 
       const userWithRoles = await DatabaseService.getUserWithRoles(userId);
 
       if (userWithRoles) {
-        Logger.info('User authenticated with real database data', {
+        Logger.info('User authenticated with database verification', {
           userId: userWithRoles.id,
           email: userWithRoles.email,
           roles: userWithRoles.roles?.map(r => r.role),
@@ -150,34 +405,28 @@ const authenticate = async (req) => {
 
         return { success: true, user: userWithRoles };
       } else {
-        Logger.warn('User not found in database, falling back to token data', { userId });
+        Logger.warn('User not found in database, using token data', { userId });
       }
     } catch (dbError) {
-      Logger.warn('Database query failed, falling back to token data', {
+      Logger.warn('Database verification failed, using token data', {
         error: dbError.message,
-        errorCode: dbError.code,
-        userId,
-        userIdType: typeof userId
+        userId
       });
     }
 
-    // Fallback to token data for development/testing
-    Logger.info('Using token data as fallback for authentication', { userId });
+    // Use token data as fallback (for development/testing)
+    Logger.info('Using token data for authentication', { userId, email });
 
-    const fallbackUser = {
+    const tokenUser = {
       id: userId,
-      email: decoded.email || decoded.user?.email || 'unknown@example.com',
-      resourceId: decoded.resourceId || decoded.user?.resourceId || null,
-      roles: decoded.roles ? decoded.roles.map(role => ({ role })) : [{ role: 'admin' }],
-      permissions: decoded.permissions || [
-        'time_logging', 'reports', 'change_lead_reports', 'resource_management',
-        'project_management', 'user_management', 'system_admin', 'dashboard',
-        'calendar', 'submission_overview', 'settings', 'role_management'
-      ],
-      resource: decoded.user?.resource || null
+      email: email,
+      resourceId: resourceId,
+      roles: roles.map(role => ({ role })),
+      permissions: permissions,
+      resource: resourceId ? { id: resourceId, name: 'Token User', role: 'User' } : null
     };
 
-    return { success: true, user: fallbackUser };
+    return { success: true, user: tokenUser };
   } catch (error) {
     Logger.error('Authentication failed', error, { token: authHeader.substring(0, 20) + '...' });
     return { success: false, error: 'Invalid or expired token' };
@@ -199,20 +448,19 @@ const validateInput = (schema) => (data) => {
   }
 };
 
-// Error response utility
-const createErrorResponse = (res, statusCode, message, details = null) => {
-  const errorResponse = {
-    error: true,
-    message,
-    timestamp: new Date().toISOString()
-  };
-  
-  if (details) {
-    errorResponse.details = details;
-  }
-  
-  Logger.error(`HTTP ${statusCode}: ${message}`, null, { details });
-  return res.status(statusCode).json(errorResponse);
+// Secure error response utility
+const createErrorResponse = (res, statusCode, message, details = null, context = {}) => {
+  // Create a mock error object for the secure error handler
+  const error = new Error(message);
+  error.name = statusCode >= 400 && statusCode < 500 ? 'ClientError' : 'ServerError';
+
+  const { response } = SecureErrorHandler.createErrorResponse(error, {
+    ...context,
+    statusCode,
+    details
+  });
+
+  return res.status(statusCode).json(response);
 };
 
 // Success response utility
@@ -240,14 +488,13 @@ const withMiddleware = (handler, options = {}) => {
     const requestId = Math.random().toString(36).substring(7);
     
     try {
-      // Set CORS and security headers
-      Object.entries({ ...CORS_HEADERS, ...SECURITY_HEADERS }).forEach(([key, value]) => {
-        res.setHeader(key, value);
-      });
+      // Apply security headers and handle CORS
+      SecurityHeadersService.applyHeaders(res, req);
 
       // Handle preflight requests
       if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        SecurityHeadersService.handlePreflight(req, res);
+        return;
       }
 
       // Method validation
@@ -345,6 +592,22 @@ module.exports = {
   createSuccessResponse,
   withMiddleware,
   withRetry,
-  CORS_HEADERS,
-  SECURITY_HEADERS
+  // JWT utilities
+  JWT_CONFIG,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  // Configuration utilities
+  ConfigSecurityService,
+  secureConfig,
+  // Security logging utilities
+  securityLogger,
+  SecureErrorHandler,
+  LOGGING_CONFIG,
+  // Security headers utilities
+  SecurityHeadersService,
+  SECURITY_HEADERS_CONFIG,
+  // Authorization utilities
+  AuthorizationService
 };

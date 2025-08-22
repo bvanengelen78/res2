@@ -4,6 +4,7 @@
 
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 const { DatabaseService } = require('./lib/supabase');
+const { PasswordSecurityService } = require('./lib/password-security');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 

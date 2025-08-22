@@ -4,10 +4,30 @@ import { nanoid } from 'nanoid';
 import { storage } from './storage';
 import type { User, UserWithRoles, InsertUser, InsertUserSession, InsertUserRole, InsertPasswordResetToken, RoleType, PermissionType } from '@shared/schema';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+// Import password security service (will be created as JS module)
+const { PasswordSecurityService } = require('../api/lib/password-security');
+
+// JWT Configuration - Centralized and Secure
+const JWT_CONFIG = {
+  ACCESS_SECRET: process.env.JWT_SECRET,
+  REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+  ACCESS_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
+  REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  ALGORITHM: 'HS256' as const,
+  ISSUER: 'resourceflow-auth',
+  AUDIENCE: 'resourceflow-app'
+};
+
+// Validate JWT configuration
+if (!JWT_CONFIG.ACCESS_SECRET || JWT_CONFIG.ACCESS_SECRET === 'your-secret-key-change-in-production') {
+  throw new Error('JWT_SECRET must be set to a secure value in production');
+}
+if (!JWT_CONFIG.REFRESH_SECRET || JWT_CONFIG.REFRESH_SECRET === 'your-refresh-secret-key-change-in-production') {
+  throw new Error('JWT_REFRESH_SECRET must be set to a secure value in production');
+}
+if (JWT_CONFIG.ACCESS_SECRET === JWT_CONFIG.REFRESH_SECRET) {
+  throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different');
+}
 
 export interface AuthTokens {
   accessToken: string;
@@ -44,8 +64,18 @@ export class AuthService {
       throw new Error('User already exists with this email');
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(credentials.password, 12);
+    // Validate and hash password using secure password service
+    const passwordValidation = PasswordSecurityService.validatePassword(credentials.password);
+    if (!passwordValidation.valid) {
+      throw new Error(`Password validation failed: ${passwordValidation.errors.join(', ')}`);
+    }
+
+    const hashResult = await PasswordSecurityService.hashPassword(credentials.password);
+    if (!hashResult.success) {
+      throw new Error(`Password hashing failed: ${hashResult.error}`);
+    }
+
+    const hashedPassword = hashResult.hashedPassword;
 
     // Create user
     const newUser: InsertUser = {
@@ -97,9 +127,9 @@ export class AuthService {
         throw new Error('Account is deactivated');
       }
 
-      // Verify password
-      const isValidPassword = await bcrypt.compare(credentials.password, user.password);
-      if (!isValidPassword) {
+      // Verify password using secure password service
+      const passwordVerification = await PasswordSecurityService.verifyPassword(credentials.password, user.password);
+      if (!passwordVerification.success || !passwordVerification.isValid) {
         throw new Error('Invalid email or password');
       }
 
@@ -187,21 +217,17 @@ export class AuthService {
    */
   async verifyToken(token: string): Promise<UserWithRoles> {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      // Use standardized JWT verification
+      const decoded = jwt.verify(token, JWT_CONFIG.ACCESS_SECRET, {
+        algorithms: [JWT_CONFIG.ALGORITHM],
+        issuer: JWT_CONFIG.ISSUER,
+        audience: JWT_CONFIG.AUDIENCE
+      }) as any;
 
-      // Handle both token formats: { userId: 1 } and { user: { id: 1 } }
-      let userId = decoded.userId || decoded.user?.id;
+      // Extract userId from standardized token structure
+      const userId = decoded.userId;
 
-      // Convert string userId to number if needed
-      if (typeof userId === 'string' && userId !== 'undefined' && userId !== 'null') {
-        const parsedUserId = parseInt(userId, 10);
-        if (!isNaN(parsedUserId)) {
-          userId = parsedUserId;
-        }
-      }
-
-      // Validate userId
-      if (!userId || userId === 'undefined' || userId === 'null' || isNaN(userId)) {
+      if (!userId || typeof userId !== 'number') {
         throw new Error('Invalid token structure - missing valid userId');
       }
 
@@ -212,7 +238,10 @@ export class AuthService {
 
       return userWithRoles;
     } catch (error) {
-      throw new Error('Invalid token');
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw new Error('Invalid or expired token');
+      }
+      throw new Error('Token verification failed');
     }
   }
 
@@ -227,17 +256,23 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + expiresInMs);
     const refreshExpiresAt = new Date(Date.now() + refreshExpiresInMs);
 
-    // Generate JWT tokens
+    // Generate standardized JWT tokens
     const accessToken = jwt.sign(
       {
         userId: user.id,
-        sessionId,
         email: user.email,
+        resourceId: user.resourceId,
         roles: user.roles.map(r => r.role),
         permissions: user.permissions,
+        sessionId,
       },
-      JWT_SECRET,
-      { expiresIn: rememberMe ? '30d' : JWT_EXPIRES_IN }
+      JWT_CONFIG.ACCESS_SECRET,
+      {
+        expiresIn: rememberMe ? '30d' : JWT_CONFIG.ACCESS_EXPIRES_IN,
+        algorithm: JWT_CONFIG.ALGORITHM,
+        issuer: JWT_CONFIG.ISSUER,
+        audience: JWT_CONFIG.AUDIENCE
+      }
     );
 
     const refreshToken = jwt.sign(
@@ -246,8 +281,13 @@ export class AuthService {
         sessionId,
         type: 'refresh',
       },
-      JWT_REFRESH_SECRET,
-      { expiresIn: rememberMe ? '90d' : JWT_REFRESH_EXPIRES_IN }
+      JWT_CONFIG.REFRESH_SECRET,
+      {
+        expiresIn: rememberMe ? '90d' : JWT_CONFIG.REFRESH_EXPIRES_IN,
+        algorithm: JWT_CONFIG.ALGORITHM,
+        issuer: JWT_CONFIG.ISSUER,
+        audience: JWT_CONFIG.AUDIENCE
+      }
     );
 
     // Store session
@@ -315,8 +355,18 @@ export class AuthService {
       throw new Error('Reset token has expired');
     }
 
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    // Validate and hash new password using secure password service
+    const passwordValidation = PasswordSecurityService.validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      throw new Error(`New password validation failed: ${passwordValidation.errors.join(', ')}`);
+    }
+
+    const hashResult = await PasswordSecurityService.hashPassword(newPassword);
+    if (!hashResult.success) {
+      throw new Error(`Password hashing failed: ${hashResult.error}`);
+    }
+
+    const hashedPassword = hashResult.hashedPassword;
 
     // Update user password
     await storage.updateUser(resetToken.userId, {

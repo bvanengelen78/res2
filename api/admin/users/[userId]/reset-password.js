@@ -4,6 +4,7 @@
 
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../../../lib/middleware');
 const { DatabaseService } = require('../../../lib/supabase');
+const { PasswordSecurityService } = require('../../../lib/password-security');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -194,16 +195,37 @@ const resetPasswordHandler = async (req, res, { user, validatedData }) => {
       return createErrorResponse(res, 404, 'User not found');
     }
 
-    // Generate secure password
-    const newPassword = generateSecurePassword();
-    Logger.info('Generated secure password', { 
-      targetUserId, 
+    // Generate secure password using centralized service
+    const passwordGeneration = PasswordSecurityService.generateSecurePassword();
+    if (!passwordGeneration.success) {
+      Logger.error('Password generation failed', {
+        targetUserId,
+        adminUserId,
+        error: passwordGeneration.error
+      });
+      return createErrorResponse(res, 500, 'Failed to generate secure password');
+    }
+
+    const newPassword = passwordGeneration.password;
+    Logger.info('Generated secure password', {
+      targetUserId,
       adminUserId,
-      passwordLength: newPassword.length 
+      passwordLength: newPassword.length,
+      passwordPolicy: passwordGeneration.policy
     });
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    // Hash the password using centralized service
+    const hashResult = await PasswordSecurityService.hashPassword(newPassword);
+    if (!hashResult.success) {
+      Logger.error('Password hashing failed', {
+        targetUserId,
+        adminUserId,
+        error: hashResult.error
+      });
+      return createErrorResponse(res, 500, 'Failed to process password');
+    }
+
+    const hashedPassword = hashResult.hashedPassword;
 
     // Update user password
     await DatabaseService.updateUserPassword(targetUserId, hashedPassword);

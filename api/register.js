@@ -5,12 +5,13 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const { PasswordSecurityService } = require('./lib/password-security');
+const { generateAccessToken, generateRefreshToken, JWT_CONFIG } = require('./lib/middleware');
+const { InputValidationService, registerSchema } = require('./lib/input-validation');
 
 // Configuration
-const JWT_SECRET = process.env.JWT_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const BCRYPT_SALT_ROUNDS = 12;
 
 // Initialize Supabase client
 let supabase = null;
@@ -184,13 +185,18 @@ module.exports = async function handler(req, res) {
   try {
     log('info', 'User registration request', requestContext);
 
-    // Input validation
-    const validation = validateInput(req.body);
-    if (!validation.valid) {
-      log('warn', 'Registration validation failed', { ...requestContext, error: validation.error });
+    // Comprehensive input validation and sanitization
+    const validation = InputValidationService.validateInput(registerSchema, req.body);
+    if (!validation.success) {
+      log('warn', 'Registration validation failed', {
+        ...requestContext,
+        error: validation.error,
+        details: validation.details
+      });
       return res.status(400).json({
         error: true,
         message: validation.error,
+        details: validation.details,
         code: validation.code,
         timestamp: new Date().toISOString()
       });
@@ -221,8 +227,39 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    // Validate and hash password using secure password service
+    const passwordValidation = PasswordSecurityService.validatePassword(password);
+    if (!passwordValidation.valid) {
+      log('warn', 'Registration failed - password policy violation', {
+        ...requestContext,
+        email,
+        errors: passwordValidation.errors
+      });
+      return res.status(400).json({
+        error: true,
+        message: 'Password does not meet security requirements',
+        details: passwordValidation.errors,
+        code: 'INVALID_PASSWORD',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const hashResult = await PasswordSecurityService.hashPassword(password);
+    if (!hashResult.success) {
+      log('error', 'Registration failed - password hashing error', {
+        ...requestContext,
+        email,
+        error: hashResult.error
+      });
+      return res.status(500).json({
+        error: true,
+        message: 'Registration service temporarily unavailable',
+        code: 'SYSTEM_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const hashedPassword = hashResult.hashedPassword;
 
     // Create user
     const user = await createUser(email, hashedPassword, resourceId);
@@ -230,18 +267,18 @@ module.exports = async function handler(req, res) {
     // Assign default role
     await assignDefaultRole(user.id);
 
-    // Generate JWT tokens
-    const accessToken = jwt.sign(
-      { user: { id: user.id, email: user.email, resourceId: user.resource_id } },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    // Generate standardized JWT tokens
+    const tokenPayload = {
+      userId: user.id,
+      email: user.email,
+      resourceId: user.resource_id,
+      roles: ['regular_user'], // Default role for new users
+      permissions: ['time_logging', 'dashboard'], // Basic permissions
+      rememberMe: false
+    };
 
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
 
     // Prepare response
     const responseData = {

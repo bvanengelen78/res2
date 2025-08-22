@@ -2,9 +2,13 @@
 // Secure logout with token invalidation and audit logging
 
 const jwt = require('jsonwebtoken');
+const { SessionSecurityService } = require('./lib/session-security');
+const { verifyAccessToken, JWT_CONFIG } = require('./lib/middleware');
 
-// Configuration
-const JWT_SECRET = process.env.JWT_SECRET;
+// Configuration validation
+if (!JWT_CONFIG.ACCESS_SECRET) {
+  throw new Error('JWT_SECRET must be configured for logout');
+}
 
 // Security headers
 function setSecurityHeaders(res) {
@@ -30,24 +34,26 @@ function log(level, message, context = {}) {
   }));
 }
 
-// Extract and verify token
+// Extract and verify token using standardized verification
 function extractAndVerifyToken(authHeader) {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { valid: false, error: 'Missing or invalid authorization header' };
   }
 
   const token = authHeader.substring(7);
-  
-  try {
-    if (!JWT_SECRET) {
-      throw new Error('JWT_SECRET not configured');
-    }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return { valid: true, decoded, token };
-  } catch (error) {
-    return { valid: false, error: 'Invalid or expired token' };
+  // Check if token is already blacklisted
+  if (SessionSecurityService.isTokenBlacklisted(token)) {
+    return { valid: false, error: 'Token has been revoked' };
   }
+
+  // Use standardized token verification
+  const verificationResult = verifyAccessToken(token);
+  if (!verificationResult.success) {
+    return { valid: false, error: verificationResult.error };
+  }
+
+  return { valid: true, decoded: verificationResult.payload, token };
 }
 
 // Main handler
@@ -91,28 +97,36 @@ module.exports = async function handler(req, res) {
     }
 
     const { decoded, token } = tokenResult;
-    const userId = decoded.user?.id || decoded.userId;
+    const userId = decoded.userId;
+    const sessionId = decoded.sessionId;
 
-    // Log successful logout
-    log('security', 'User logout successful', {
+    // Blacklist the current token
+    const tokenExpiry = decoded.exp * 1000; // Convert to milliseconds
+    SessionSecurityService.blacklistToken(token, tokenExpiry);
+
+    // Invalidate the specific session if sessionId is available
+    if (sessionId) {
+      SessionSecurityService.invalidateSession(sessionId);
+    }
+
+    // Clear any failed login attempts for this user
+    SessionSecurityService.clearFailedAttempts(userId, 'user');
+
+    // Log successful logout with security details
+    log('security', 'User logout successful - token blacklisted and session invalidated', {
       ...requestContext,
       userId,
-      email: decoded.user?.email,
-      tokenExpiry: new Date(decoded.exp * 1000).toISOString()
+      email: decoded.email,
+      sessionId,
+      tokenExpiry: new Date(tokenExpiry).toISOString(),
+      blacklistedToken: token.substring(0, 20) + '...' // Log partial token for debugging
     });
 
-    // In a production system, you would:
-    // 1. Add the token to a blacklist/revocation list
-    // 2. Store the logout event in an audit log
-    // 3. Invalidate any related sessions
-    
-    // For now, we'll just return success
-    // The client will remove the token from localStorage
-    
     return res.status(200).json({
       success: true,
-      message: 'Logout successful',
-      timestamp: new Date().toISOString()
+      message: 'Logout successful - session terminated',
+      timestamp: new Date().toISOString(),
+      sessionInvalidated: !!sessionId
     });
 
   } catch (error) {
