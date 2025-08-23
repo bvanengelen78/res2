@@ -5,7 +5,7 @@
 const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { DatabaseService } = require('../lib/supabase');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 // Input validation schema
@@ -19,9 +19,20 @@ const createUserSchema = z.object({
     .max(255, 'Email must be less than 255 characters')
     .toLowerCase()
     .trim(),
-  role: z.enum(['regular_user', 'admin', 'manager'], {
-    errorMap: () => ({ message: 'Role must be one of: regular_user, admin, manager' })
-  }).optional(),
+  firstName: z.string()
+    .min(1, 'First name is required')
+    .max(50, 'First name must be less than 50 characters')
+    .trim(),
+  lastName: z.string()
+    .min(1, 'Last name is required')
+    .max(50, 'Last name must be less than 50 characters')
+    .trim(),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(100, 'Password must be less than 100 characters'),
+  role: z.enum(['user', 'manager', 'admin'], {
+    errorMap: () => ({ message: 'Role must be one of: user, manager, admin' })
+  }).optional().default('user'),
   department: z.string()
     .max(100, 'Department must be less than 100 characters')
     .trim()
@@ -59,7 +70,7 @@ function generateDefaultPassword() {
 // Main handler
 const createUserHandler = async (req, res, { user, validatedData }) => {
   try {
-    const { name, email, role, department, jobRole, capacity } = validatedData;
+    const { name, email, firstName, lastName, password, role, department, jobRole, capacity } = validatedData;
 
     Logger.info('RBAC create user request', {
       adminUserId: user.id,
@@ -69,17 +80,61 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       assignedRole: role
     });
 
-    // Check if user already exists
-    const existingUser = await DatabaseService.getUserByEmail(email);
-    if (existingUser) {
-      Logger.warn('Create user failed - user already exists', { 
-        email, 
-        adminUserId: user.id 
+    // Check if user already exists in Supabase Auth
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
+    // Check if user already exists in our user_profiles table
+    const { data: existingProfile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingProfile) {
+      Logger.warn('Create user failed - user already exists', {
+        email,
+        adminUserId: user.id
       });
       return createErrorResponse(res, 400, 'User with this email already exists');
     }
 
-    // Create resource first
+    // Create user in Supabase Auth first
+    Logger.info('Creating user in Supabase Auth', { email, firstName, lastName });
+
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true, // Auto-confirm email for admin-created users
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        full_name: name,
+        role: role,
+      },
+    });
+
+    if (authError) {
+      Logger.error('Failed to create user in Supabase Auth', authError, { email });
+      throw new Error(`Authentication error: ${authError.message}`);
+    }
+
+    const authUserId = authData.user.id;
+    Logger.info('User created in Supabase Auth successfully', {
+      authUserId,
+      email
+    });
+
+    // Create resource
     Logger.info('Creating resource for new user', { name, email, department, jobRole });
     const resource = await DatabaseService.createResource({
       name,
@@ -92,57 +147,87 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       isActive: true,
     });
 
-    Logger.info('Resource created successfully', { 
-      resourceId: resource.id, 
-      name, 
-      email 
-    });
-
-    // Create user account with default password
-    const defaultPassword = generateDefaultPassword();
-    const hashedPassword = await bcrypt.hash(defaultPassword, 12);
-    
-    Logger.info('Creating user account', { email, resourceId: resource.id });
-    const newUser = await DatabaseService.createUser({
-      email,
-      password: hashedPassword,
+    Logger.info('Resource created successfully', {
       resourceId: resource.id,
-      isActive: true,
+      name,
+      email
     });
 
-    Logger.info('User account created successfully', { 
-      userId: newUser.id, 
-      email, 
-      resourceId: resource.id 
-    });
+    // Create user profile in our database
+    Logger.info('Creating user profile', { authUserId, email, resourceId: resource.id });
+    const { data: userProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .insert({
+        id: authUserId,
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        resource_id: resource.id,
+        is_active: true,
+      })
+      .select()
+      .single();
 
-    // Assign initial role if provided
-    if (role) {
-      Logger.info('Assigning initial role', { 
-        userId: newUser.id, 
-        role, 
-        assignedBy: user.id 
-      });
-      
-      await DatabaseService.assignUserRole({
-        userId: newUser.id,
-        role,
-        resourceId: resource.id,
-        assignedBy: user.id
-      });
-
-      Logger.info('Initial role assigned successfully', { 
-        userId: newUser.id, 
-        role 
-      });
+    if (profileError) {
+      Logger.error('Failed to create user profile', profileError, { authUserId, email });
+      throw new Error(`Profile creation error: ${profileError.message}`);
     }
+
+    Logger.info('User profile created successfully', {
+      userId: userProfile.id,
+      email,
+      resourceId: resource.id
+    });
+
+    // Assign initial role
+    Logger.info('Assigning initial role', {
+      userId: userProfile.id,
+      role,
+      assignedBy: user.id
+    });
+
+    // Get role ID from roles table
+    const { data: roleData, error: roleError } = await supabase
+      .from('roles')
+      .select('id')
+      .eq('name', role)
+      .single();
+
+    if (roleError || !roleData) {
+      Logger.error('Failed to find role', roleError, { role });
+      throw new Error(`Role not found: ${role}`);
+    }
+
+    // Assign role to user
+    const { error: roleAssignError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: userProfile.id,
+        role_id: roleData.id,
+        assigned_by: user.id,
+        is_active: true,
+      });
+
+    if (roleAssignError) {
+      Logger.error('Failed to assign role', roleAssignError, {
+        userId: userProfile.id,
+        roleId: roleData.id
+      });
+      throw new Error(`Role assignment error: ${roleAssignError.message}`);
+    }
+
+    Logger.info('Initial role assigned successfully', {
+      userId: userProfile.id,
+      role,
+      roleId: roleData.id
+    });
 
     // Log the successful user creation
     Logger.info('User created successfully by admin', {
       newUser: {
-        id: newUser.id,
-        email: newUser.email,
-        resourceId: newUser.resourceId
+        id: userProfile.id,
+        email: userProfile.email,
+        resourceId: userProfile.resource_id
       },
       resource: {
         id: resource.id,
@@ -161,9 +246,13 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
     return createSuccessResponse(res, {
       message: 'User created successfully',
       user: {
-        id: newUser.id,
-        email: newUser.email,
-        resourceId: newUser.resourceId,
+        id: userProfile.id,
+        email: userProfile.email,
+        resourceId: userProfile.resource_id,
+        firstName: userProfile.first_name,
+        lastName: userProfile.last_name,
+        fullName: `${userProfile.first_name} ${userProfile.last_name}`,
+        role: role
       },
       resource: {
         id: resource.id,
@@ -174,7 +263,7 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
         capacity: resource.capacity
       },
       assignedRole: role,
-      defaultPassword, // In production, this would be sent via email
+      defaultPassword: password, // Return the password that was used
       // Security note: Password is only returned once for admin to communicate to user
       passwordNote: 'This password will only be shown once. Please securely communicate it to the user.'
     }, 201);
@@ -198,11 +287,8 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
 // Export with middleware
 module.exports = withMiddleware(createUserHandler, {
   requireAuth: true,
-  requirePermissions: ['role_management'], // Role management permission required
   allowedMethods: ['POST'],
-  validateSchema: {
-    POST: createUserSchema
-  },
+  validateSchema: createUserSchema,
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 5 // 5 user creations per minute max
