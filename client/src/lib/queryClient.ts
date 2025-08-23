@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
@@ -145,6 +145,7 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+// Enhanced query client configuration for production environments
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -153,11 +154,57 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
+      // Enhanced cache time for production stability
+      gcTime: 1000 * 60 * 5, // 5 minutes
+      // Network mode for better serverless handling
+      networkMode: 'online',
     },
     mutations: {
       retry: false,
+      // Enhanced mutation options for production
+      networkMode: 'online',
+      // Longer timeout for serverless functions
+      meta: {
+        timeout: 30000, // 30 seconds
+      },
     },
   },
+  // Enhanced mutation cache for better invalidation tracking
+  mutationCache: new MutationCache({
+    onSuccess: (data, variables, context, mutation) => {
+      console.log('🎯 Mutation succeeded:', {
+        mutationKey: mutation.options.mutationKey,
+        timestamp: new Date().toISOString(),
+        hasData: !!data
+      })
+    },
+    onError: (error, variables, context, mutation) => {
+      console.error('❌ Mutation failed:', {
+        mutationKey: mutation.options.mutationKey,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    },
+  }),
+  // Enhanced query cache for better debugging
+  queryCache: new QueryCache({
+    onSuccess: (data, query) => {
+      if (query.queryKey.includes('users')) {
+        console.log('📊 Query cache updated:', {
+          queryKey: query.queryKey,
+          dataLength: Array.isArray(data) ? data.length : 'N/A',
+          timestamp: new Date().toISOString()
+        })
+      }
+    },
+    onError: (error, query) => {
+      console.error('❌ Query cache error:', {
+        queryKey: query.queryKey,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    },
+  }),
 });
 
 // Centralized cache invalidation system for real-time data synchronization

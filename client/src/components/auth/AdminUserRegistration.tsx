@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { invalidateUserCachesProduction } from "@/utils/productionCacheUtils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -333,26 +334,58 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
         description: `User account for ${data.user.email} has been created with ${data.user.role} role.`,
       })
 
-      // Comprehensive cache invalidation for all user-related queries
+      // Log environment information for debugging
+      console.log('🌍 Environment info:', {
+        isProduction: process.env.NODE_ENV === 'production',
+        isVercel: !!process.env.VERCEL,
+        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'N/A',
+        timestamp: new Date().toISOString(),
+        createdUser: data.user.email
+      })
+
+      // Production-optimized cache invalidation
       try {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
-          queryClient.invalidateQueries({ queryKey: ['rbac', 'users'] }),
-          queryClient.invalidateQueries({ queryKey: ["/api/rbac-users"] }),
-          // Also invalidate auth queries in case user profile was updated
-          queryClient.invalidateQueries({ queryKey: ['auth', 'user'] }),
-        ])
+        console.log('🔄 Starting production cache invalidation...')
 
-        console.log('✅ Cache invalidation completed successfully')
+        // Use production cache manager for reliable invalidation
+        const success = await invalidateUserCachesProduction(queryClient)
 
-        // Small delay to ensure UI has time to process the cache invalidation
-        await new Promise(resolve => setTimeout(resolve, 100))
+        if (success) {
+          console.log('✅ Production cache invalidation completed successfully')
+
+          // Additional verification step
+          setTimeout(() => {
+            const updatedData = queryClient.getQueryData(['admin', 'users'])
+            console.log('🔍 Post-invalidation cache verification:', {
+              hasData: !!updatedData,
+              userCount: Array.isArray(updatedData) ? updatedData.length : 'N/A',
+              timestamp: new Date().toISOString()
+            })
+          }, 100)
+
+        } else {
+          console.warn('⚠️ Production cache invalidation had issues, but continuing...')
+        }
+
+        // Optimal delay for production environment
+        await new Promise(resolve => setTimeout(resolve, 300))
 
         // Call the callback after cache invalidation is complete
         onUserCreated?.()
       } catch (error) {
-        console.error('❌ Cache invalidation failed:', error)
-        // Still call the callback even if cache invalidation fails
+        console.error('❌ Production cache invalidation failed:', error)
+
+        // Emergency fallback: basic invalidation
+        try {
+          console.log('🚨 Emergency fallback: basic cache invalidation...')
+          await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+          await queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (fallbackError) {
+          console.error('❌ Emergency fallback also failed:', fallbackError)
+        }
+
+        // Always call the callback
         onUserCreated?.()
       }
 

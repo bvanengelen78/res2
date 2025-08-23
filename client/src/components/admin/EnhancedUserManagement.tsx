@@ -304,13 +304,37 @@ export function EnhancedUserManagement() {
             <AdminUserRegistration
               onUserCreated={() => {
                 // Cache invalidation is handled by AdminUserRegistration component
-                // Provide additional user feedback
+                // Provide additional user feedback with enhanced debugging
+                console.log('🎉 User creation callback triggered in EnhancedUserManagement')
+
+                // Log current users state for debugging
+                const currentUsers = queryClient.getQueryData(['admin', 'users'])
+                console.log('📊 Current users in cache after creation:', {
+                  hasData: !!currentUsers,
+                  userCount: Array.isArray(currentUsers) ? currentUsers.length : 'N/A',
+                  timestamp: new Date().toISOString()
+                })
+
+                // Force a manual refetch as additional safety measure
+                setTimeout(async () => {
+                  try {
+                    console.log('🔄 Manual refetch triggered as safety measure...')
+                    await queryClient.refetchQueries({
+                      queryKey: ['admin', 'users'],
+                      type: 'active'
+                    })
+                    console.log('✅ Manual refetch completed')
+                  } catch (error) {
+                    console.error('❌ Manual refetch failed:', error)
+                  }
+                }, 500)
+
                 toast({
                   title: "User List Updated",
                   description: "The user management interface has been refreshed with the new user.",
                   duration: 3000,
                 })
-                console.log('User created successfully - UI refreshed automatically')
+                console.log('✅ User created successfully - UI refresh process completed')
               }}
             />
           </div>
