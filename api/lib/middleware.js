@@ -32,7 +32,13 @@ const Logger = {
 };
 
 // Response helpers
-const createErrorResponse = (res, status, message) => res.status(status).json({ error: message });
+const createErrorResponse = (res, status, message, details = null) => {
+  const errorResponse = { error: message };
+  if (details) {
+    errorResponse.details = details;
+  }
+  return res.status(status).json(errorResponse);
+};
 const createSuccessResponse = (res, data) => res.json(data);
 
 // Supabase authentication function

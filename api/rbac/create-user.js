@@ -100,12 +100,27 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       return createErrorResponse(res, 500, 'Database configuration error');
     }
 
+    Logger.info('Starting user creation process', {
+      step: 'initialization',
+      email,
+      role,
+      department,
+      jobRole
+    });
+
     // Check if user already exists in our user_profiles table
-    const { data: existingProfile } = await supabase
+    Logger.info('Checking for existing user', { step: 'check_existing', email });
+    const { data: existingProfile, error: checkError } = await supabase
       .from('user_profiles')
       .select('id')
       .eq('email', email)
       .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "not found" which is expected for new users
+      Logger.error('Error checking existing user', { error: checkError.message, email });
+      throw new Error(`Database error checking existing user: ${checkError.message}`);
+    }
 
     if (existingProfile) {
       Logger.warn('Create user failed - user already exists', {
@@ -115,8 +130,10 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       return createErrorResponse(res, 400, 'User with this email already exists');
     }
 
+    Logger.info('User does not exist, proceeding with creation', { step: 'validated_new_user', email });
+
     // Create user in Supabase Auth first
-    Logger.info('Creating user in Supabase Auth', { email, firstName, lastName });
+    Logger.info('Creating user in Supabase Auth', { step: 'create_auth_user', email, firstName, lastName });
 
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: email,
@@ -128,6 +145,21 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
         full_name: name,
         role: role,
       },
+    });
+
+    if (authError) {
+      Logger.error('Supabase Auth user creation failed', {
+        step: 'auth_creation_failed',
+        error: authError.message,
+        email
+      });
+      throw new Error(`Auth user creation failed: ${authError.message}`);
+    }
+
+    Logger.info('Supabase Auth user created successfully', {
+      step: 'auth_user_created',
+      userId: authData.user?.id,
+      email
     });
 
     if (authError) {
@@ -296,12 +328,26 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       }
     });
 
-    // Return more specific error information for debugging
-    const errorMessage = process.env.NODE_ENV === 'development'
-      ? `Failed to create user: ${error.message}`
-      : 'Failed to create user';
+    // Return detailed error information for debugging
+    // In production, we'll include error details for debugging but sanitize sensitive info
+    const errorDetails = {
+      message: error.message,
+      code: error.code || 'UNKNOWN_ERROR',
+      timestamp: new Date().toISOString(),
+      // Include stack trace only in development
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    };
 
-    return createErrorResponse(res, 500, errorMessage);
+    // Log the full error for server-side debugging
+    console.error('[CREATE-USER] Full error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name,
+      cause: error.cause
+    });
+
+    return createErrorResponse(res, 500, `Failed to create user: ${error.message}`, errorDetails);
   }
 };
 
