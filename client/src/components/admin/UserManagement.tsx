@@ -193,44 +193,11 @@ export function UserManagement() {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // Temporarily bypass role filtering to debug the issue
     const matchesRole = roleFilter === 'all' ||
-                       user.roles.some(role => role.name === roleFilter) ||
-                       true // TEMPORARY: Always pass role filter for debugging
-
-    // Debug logging for production troubleshooting
-    if (process.env.NODE_ENV === 'production') {
-      console.log('🔍 Legacy User Management filtering debug:', {
-        userEmail: user.email,
-        userIsActive: user.is_active,
-        userRoles: user.roles,
-        roleFilter: roleFilter,
-        matchesSearch: matchesSearch,
-        matchesRole: matchesRole,
-        finalResult: matchesSearch && matchesRole && user.is_active
-      })
-    }
+                       user.roles.some(role => role.name === roleFilter)
 
     return matchesSearch && matchesRole && user.is_active
   }) || []
-
-  // Additional debug logging for cache vs UI sync issues
-  React.useEffect(() => {
-    if (process.env.NODE_ENV === 'production' && users) {
-      console.log('📊 Legacy User Management Debug:', {
-        totalUsersInCache: users.length,
-        filteredUsersCount: filteredUsers.length,
-        searchTerm: searchTerm,
-        roleFilter: roleFilter,
-        usersData: users.map(u => ({
-          email: u.email,
-          isActive: u.is_active,
-          rolesCount: u.roles?.length || 0,
-          roles: u.roles?.map(r => r.name) || []
-        }))
-      })
-    }
-  }, [users, filteredUsers, searchTerm, roleFilter])
 
   const handleDeleteUser = (userId: string) => {
     if (userId === currentUser?.id) {
@@ -291,7 +258,6 @@ export function UserManagement() {
                   description: "The user management interface has been refreshed with the new user.",
                   duration: 3000,
                 })
-                console.log('User created successfully - UI refreshed automatically')
               }}
             />
           </div>
