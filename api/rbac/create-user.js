@@ -142,9 +142,8 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
         email,
         role: jobRole,
         department,
-        capacity,
+        weekly_capacity: capacity,
         skills: [],
-        hourly_rate: 0,
         is_active: true,
       })
       .select()
@@ -269,7 +268,7 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
         email: resource.email,
         role: resource.role,
         department: resource.department,
-        capacity: resource.capacity
+        capacity: resource.weekly_capacity
       },
       assignedRole: role,
       defaultPassword: password, // Return the password that was used
@@ -298,6 +297,7 @@ module.exports = withMiddleware(createUserHandler, {
   requireAuth: true,
   allowedMethods: ['POST'],
   validateSchema: createUserSchema,
+  requiredPermissions: ['user_management'], // Add required permission
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 5 // 5 user creations per minute max

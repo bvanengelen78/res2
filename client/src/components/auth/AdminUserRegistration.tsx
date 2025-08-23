@@ -16,6 +16,8 @@ import { UserPlus, AlertCircle, CheckCircle, Eye, EyeOff, Copy, RefreshCw, Shiel
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { DEFAULT_ROLE_PERMISSIONS, type UserRole } from "@/types/rbac"
+import { useDepartments } from "@/hooks/useDepartments"
+import { useJobRoles } from "@/hooks/useJobRoles"
 
 // Enhanced password validation schema
 const passwordSchema = z.string()
@@ -86,32 +88,38 @@ const generateSecurePassword = (): string => {
 }
 
 // Password strength calculation
-const calculatePasswordStrength = (password: string): { score: number; feedback: string[] } => {
+const calculatePasswordStrength = (password: string): { score: number; feedback: string[]; level: string } => {
   let score = 0
   const feedback: string[] = []
 
   if (password.length >= 12) score += 25
-  else feedback.push('Use at least 12 characters')
+  else if (password.length > 0) feedback.push('Use at least 12 characters')
 
   if (/[a-z]/.test(password)) score += 25
-  else feedback.push('Add lowercase letters')
+  else if (password.length > 0) feedback.push('Add lowercase letters')
 
   if (/[A-Z]/.test(password)) score += 25
-  else feedback.push('Add uppercase letters')
+  else if (password.length > 0) feedback.push('Add uppercase letters')
 
   if (/[0-9]/.test(password)) score += 25
-  else feedback.push('Add numbers')
+  else if (password.length > 0) feedback.push('Add numbers')
 
   if (/[^a-zA-Z0-9]/.test(password)) score += 25
-  else feedback.push('Add special characters')
+  else if (password.length > 0) feedback.push('Add special characters')
 
   if (password.length >= 16) score += 10
 
-  return { score: Math.min(score, 100), feedback }
+  const finalScore = Math.min(score, 100)
+  let level = 'Weak'
+  if (finalScore >= 90) level = 'Strong'
+  else if (finalScore >= 70) level = 'Good'
+  else if (finalScore >= 50) level = 'Fair'
+
+  return { score: finalScore, feedback, level }
 }
 
-// Department options
-const DEPARTMENT_OPTIONS = [
+// Fallback department options if API fails
+const FALLBACK_DEPARTMENT_OPTIONS = [
   'Engineering',
   'Product',
   'Design',
@@ -124,8 +132,8 @@ const DEPARTMENT_OPTIONS = [
   'General'
 ]
 
-// Job role options
-const JOB_ROLE_OPTIONS = [
+// Fallback job role options if API fails
+const FALLBACK_JOB_ROLE_OPTIONS = [
   'Software Engineer',
   'Senior Software Engineer',
   'Lead Engineer',
@@ -149,11 +157,17 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] as string[] })
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] as string[], level: 'Weak' })
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
+  const [passwordTouched, setPasswordTouched] = useState(false)
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false)
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  // Fetch departments and job roles dynamically
+  const { data: departments, isLoading: departmentsLoading, error: departmentsError } = useDepartments()
+  const { data: jobRoles, isLoading: jobRolesLoading, error: jobRolesError } = useJobRoles()
 
   const form = useForm<UserRegistrationData>({
     resolver: zodResolver(userRegistrationSchema),
@@ -180,7 +194,7 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
     if (watchedPassword) {
       setPasswordStrength(calculatePasswordStrength(watchedPassword))
     } else {
-      setPasswordStrength({ score: 0, feedback: [] })
+      setPasswordStrength({ score: 0, feedback: [], level: 'Weak' })
     }
   }, [watchedPassword])
 
@@ -327,8 +341,10 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
       setError(null)
       setSuccess(null)
       setGeneratedPassword(null)
-      setPasswordStrength({ score: 0, feedback: [] })
+      setPasswordStrength({ score: 0, feedback: [], level: 'Weak' })
       setEmailExists(false)
+      setPasswordTouched(false)
+      setConfirmPasswordTouched(false)
     }
   }
 
@@ -338,8 +354,10 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
     setError(null)
     setSuccess(null)
     setGeneratedPassword(null)
-    setPasswordStrength({ score: 0, feedback: [] })
+    setPasswordStrength({ score: 0, feedback: [], level: 'Weak' })
     setEmailExists(false)
+    setPasswordTouched(false)
+    setConfirmPasswordTouched(false)
   }
 
   // Get password strength color
@@ -350,13 +368,7 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
     return "bg-green-500"
   }
 
-  // Get password strength text
-  const getPasswordStrengthText = (score: number) => {
-    if (score < 25) return "Weak"
-    if (score < 50) return "Fair"
-    if (score < 75) return "Good"
-    return "Strong"
-  }
+
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -597,7 +609,10 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Minimum 12 characters with mixed case, numbers, and symbols"
-                      {...form.register("password")}
+                      {...form.register("password", {
+                        onBlur: () => setPasswordTouched(true)
+                      })}
+                      onFocus={() => setPasswordTouched(true)}
                       disabled={createUserMutation.isPending}
                     />
                     <Button
@@ -616,22 +631,24 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                   </div>
 
                   {/* Password Strength Indicator */}
-                  {watchedPassword && (
+                  {watchedPassword && passwordTouched && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">Password strength:</span>
                         <span className={`text-sm font-medium ${
-                          passwordStrength.score < 50 ? 'text-red-600' :
-                          passwordStrength.score < 75 ? 'text-yellow-600' : 'text-green-600'
+                          passwordStrength.level === 'Strong' ? 'text-green-600' :
+                          passwordStrength.level === 'Good' ? 'text-blue-600' :
+                          passwordStrength.level === 'Fair' ? 'text-yellow-600' : 'text-red-600'
                         }`}>
-                          {getPasswordStrengthText(passwordStrength.score)}
+                          {passwordStrength.level}
                         </span>
                       </div>
                       <Progress
                         value={passwordStrength.score}
                         className="h-2"
                       />
-                      {passwordStrength.feedback.length > 0 && (
+                      {/* Only show suggestions if password is not strong */}
+                      {passwordStrength.feedback.length > 0 && passwordStrength.level !== 'Strong' && (
                         <div className="text-xs text-gray-600">
                           <p>Suggestions:</p>
                           <ul className="list-disc list-inside">
@@ -658,7 +675,10 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="Confirm password"
-                      {...form.register("confirmPassword")}
+                      {...form.register("confirmPassword", {
+                        onBlur: () => setConfirmPasswordTouched(true)
+                      })}
+                      onFocus={() => setConfirmPasswordTouched(true)}
                       disabled={createUserMutation.isPending}
                     />
                     <Button
@@ -675,7 +695,8 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                       )}
                     </Button>
                   </div>
-                  {form.formState.errors.confirmPassword && (
+                  {/* Only show password mismatch error if confirm password has been touched */}
+                  {form.formState.errors.confirmPassword && confirmPasswordTouched && (
                     <p className="text-sm text-red-600">
                       {form.formState.errors.confirmPassword.message}
                     </p>
@@ -692,19 +713,28 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                     <Select
                       value={form.watch("department")}
                       onValueChange={(value) => form.setValue("department", value)}
-                      disabled={createUserMutation.isPending}
+                      disabled={createUserMutation.isPending || departmentsLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
+                        <SelectValue placeholder={
+                          departmentsLoading ? "Loading departments..." :
+                          departmentsError ? "Error loading departments" :
+                          "Select department"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        {DEPARTMENT_OPTIONS.map((dept) => (
-                          <SelectItem key={dept} value={dept}>
-                            {dept}
+                        {(departments && departments.length > 0 ? departments : FALLBACK_DEPARTMENT_OPTIONS).map((dept) => (
+                          <SelectItem key={typeof dept === 'string' ? dept : dept.id} value={typeof dept === 'string' ? dept : dept.name}>
+                            {typeof dept === 'string' ? dept : dept.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {departmentsError && (
+                      <p className="text-sm text-yellow-600">
+                        Using fallback departments. {departmentsError.message}
+                      </p>
+                    )}
                     {form.formState.errors.department && (
                       <p className="text-sm text-red-600">
                         {form.formState.errors.department.message}
@@ -717,19 +747,28 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                     <Select
                       value={form.watch("jobRole")}
                       onValueChange={(value) => form.setValue("jobRole", value)}
-                      disabled={createUserMutation.isPending}
+                      disabled={createUserMutation.isPending || jobRolesLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select job role" />
+                        <SelectValue placeholder={
+                          jobRolesLoading ? "Loading job roles..." :
+                          jobRolesError ? "Error loading job roles" :
+                          "Select job role"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        {JOB_ROLE_OPTIONS.map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role}
+                        {(jobRoles && jobRoles.length > 0 ? jobRoles : FALLBACK_JOB_ROLE_OPTIONS).map((role) => (
+                          <SelectItem key={typeof role === 'string' ? role : role.id} value={typeof role === 'string' ? role : role.name}>
+                            {typeof role === 'string' ? role : role.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {jobRolesError && (
+                      <p className="text-sm text-yellow-600">
+                        Using fallback job roles. {jobRolesError.message}
+                      </p>
+                    )}
                     {form.formState.errors.jobRole && (
                       <p className="text-sm text-red-600">
                         {form.formState.errors.jobRole.message}

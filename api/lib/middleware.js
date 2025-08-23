@@ -29,35 +29,58 @@ const createSuccessResponse = (res, data) => res.json(data);
 const authenticate = async (req) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
+    Logger.info('Authentication attempt', {
+      hasAuthHeader: !!authHeader,
+      headerStart: authHeader ? authHeader.substring(0, 20) + '...' : 'none'
+    });
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return { 
-        success: false, 
+      Logger.warn('Authentication failed - no valid header', {
+        authHeader: authHeader ? 'present but invalid format' : 'missing'
+      });
+      return {
+        success: false,
         error: 'Authentication required',
-        message: 'No valid authorization header found' 
+        message: 'No valid authorization header found'
       };
     }
 
     const token = authHeader.substring(7);
 
     if (!supabase) {
-      return { 
-        success: false, 
+      Logger.error('Authentication failed - Supabase not configured');
+      return {
+        success: false,
         error: 'Authentication service unavailable',
-        message: 'Supabase not configured' 
+        message: 'Supabase not configured'
       };
     }
 
     // Verify the JWT token with Supabase
+    Logger.info('Verifying token with Supabase', {
+      tokenLength: token.length,
+      tokenStart: token.substring(0, 20) + '...'
+    });
+
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      return { 
-        success: false, 
+      Logger.warn('Token verification failed', {
+        error: error?.message,
+        hasUser: !!user
+      });
+      return {
+        success: false,
         error: 'Invalid token',
-        message: 'Authentication failed' 
+        message: 'Authentication failed'
       };
     }
+
+    Logger.info('Token verified successfully', {
+      userId: user.id,
+      email: user.email
+    });
 
     // Get user profile
     const { data: userProfile, error: profileError } = await supabase
@@ -155,7 +178,8 @@ const withMiddleware = (handler, options = {}) => {
     requireAuth = true,
     allowedMethods = ['GET'],
     validateSchema = null,
-    rateLimit = false
+    rateLimit = false,
+    requiredPermissions = []
   } = options;
 
   return async (req, res) => {
@@ -186,6 +210,29 @@ const withMiddleware = (handler, options = {}) => {
           return createErrorResponse(res, 401, authResult.error || authResult.message);
         }
         user = authResult.user;
+      }
+
+      // Permission checking
+      if (requiredPermissions.length > 0 && user) {
+        const hasRequiredPermissions = requiredPermissions.every(permission =>
+          user.permissions.includes(permission)
+        );
+
+        if (!hasRequiredPermissions) {
+          Logger.warn('Permission denied', {
+            requestId,
+            userId: user.id,
+            requiredPermissions,
+            userPermissions: user.permissions
+          });
+          return createErrorResponse(res, 403, 'Insufficient permissions');
+        }
+
+        Logger.info('Permission check passed', {
+          requestId,
+          userId: user.id,
+          requiredPermissions
+        });
       }
 
       // Input validation

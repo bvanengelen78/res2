@@ -17,6 +17,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import type { OgsmCharter, Department, NotificationSettings } from "@shared/schema";
+import { useJobRoles, useCreateJobRole, useUpdateJobRole, useDeleteJobRole } from "@/hooks/useJobRoles";
+import { useDepartments } from "@/hooks/useDepartments";
 import { Switch } from "@/components/ui/switch";
 import { SettingsGuard } from "@/components/auth/RBACGuard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,8 +37,15 @@ const departmentSchema = z.object({
   description: z.string().optional(),
 });
 
+const jobRoleSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  department_id: z.number().optional(),
+});
+
 type OgsmCharterForm = z.infer<typeof ogsmCharterSchema>;
 type DepartmentForm = z.infer<typeof departmentSchema>;
+type JobRoleForm = z.infer<typeof jobRoleSchema>;
 
 interface EditModalProps<T> {
   isOpen: boolean;
@@ -533,6 +542,278 @@ function DepartmentsSection() {
   );
 }
 
+function JobRolesSection() {
+  const [editingJobRole, setEditingJobRole] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { toast } = useToast();
+
+  // Fetch job roles and departments
+  const { data: jobRoles = [], isLoading, error } = useJobRoles();
+  const { data: departments = [] } = useDepartments();
+  const createMutation = useCreateJobRole();
+  const updateMutation = useUpdateJobRole();
+  const deleteMutation = useDeleteJobRole();
+
+  const handleSave = (data: JobRoleForm) => {
+    const jobRoleData = {
+      ...data,
+      is_active: true,
+    };
+
+    if (editingJobRole) {
+      updateMutation.mutate({ id: editingJobRole.id, ...jobRoleData });
+    } else {
+      createMutation.mutate(jobRoleData);
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleEdit = (jobRole: any) => {
+    setEditingJobRole(jobRole);
+    setIsModalOpen(true);
+  };
+
+  const handleAdd = () => {
+    setEditingJobRole(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Job Roles</h3>
+        </div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Job Roles</h3>
+        </div>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Failed to load job roles. Please check your permissions or try again later.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">Job Roles</h3>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-4 w-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Manage job roles for team members. These are used when creating user accounts.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Button onClick={handleAdd} size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Job Role
+        </Button>
+      </div>
+
+      <div className="grid gap-4">
+        {jobRoles.map((jobRole) => (
+          <Card key={jobRole.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-gray-900">{jobRole.name}</h4>
+                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-green-200">
+                    Active
+                  </Badge>
+                  {jobRole.department_id && (
+                    <Badge variant="outline" className="text-xs">
+                      {departments.find(d => d.id === jobRole.department_id)?.name || 'Unknown Dept'}
+                    </Badge>
+                  )}
+                </div>
+                {jobRole.description && (
+                  <p className="text-sm text-gray-600">{jobRole.description}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(jobRole)} className="border-gray-300 hover:bg-blue-50 hover:border-blue-300">
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDelete(jobRole.id)}
+                  disabled={deleteMutation.isPending}
+                  className="border-gray-300 hover:bg-red-50 hover:border-red-300"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <JobRoleEditModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        jobRole={editingJobRole}
+        onSave={handleSave}
+        departments={departments}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+      />
+    </div>
+  );
+}
+
+interface JobRoleEditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  jobRole: any | null;
+  onSave: (data: JobRoleForm) => void;
+  departments: any[];
+  isLoading?: boolean;
+}
+
+function JobRoleEditModal({ isOpen, onClose, jobRole, onSave, departments, isLoading }: JobRoleEditModalProps) {
+  const form = useForm<JobRoleForm>({
+    resolver: zodResolver(jobRoleSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      department_id: undefined,
+    },
+  });
+
+  useEffect(() => {
+    if (jobRole) {
+      form.reset({
+        name: jobRole.name || "",
+        description: jobRole.description || "",
+        department_id: jobRole.department_id || undefined,
+      });
+    } else {
+      form.reset({
+        name: "",
+        description: "",
+        department_id: undefined,
+      });
+    }
+  }, [jobRole, form]);
+
+  const handleSubmit = (data: JobRoleForm) => {
+    onSave(data);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{jobRole ? "Edit Job Role" : "Add Job Role"}</DialogTitle>
+          <DialogDescription>
+            {jobRole ? "Update the job role details." : "Create a new job role for team members."}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter job role name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Optional description for this job role" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Optional description for this job role
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="department_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Department (Optional)</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
+                    value={field.value ? field.value.toString() : ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a department" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">No Department</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id.toString()}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Optionally associate this job role with a department
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Saving..." : jobRole ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NotificationSettingsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -824,7 +1105,7 @@ export default function Settings() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         <Tabs defaultValue="ogsm-charters" className="space-y-6">
         <div className="bg-white rounded-xl shadow-sm p-2 w-full max-w-5xl">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-gray-50 rounded-lg gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 bg-gray-50 rounded-lg gap-1">
             <TabsTrigger value="ogsm-charters" className="text-xs sm:text-sm font-medium px-2 py-2">
               <span className="hidden sm:inline">OGSM Charters</span>
               <span className="sm:hidden">OGSM</span>
@@ -832,6 +1113,10 @@ export default function Settings() {
             <TabsTrigger value="departments" className="text-xs sm:text-sm font-medium px-2 py-2">
               <span className="hidden sm:inline">Departments</span>
               <span className="sm:hidden">Depts</span>
+            </TabsTrigger>
+            <TabsTrigger value="job-roles" className="text-xs sm:text-sm font-medium px-2 py-2">
+              <span className="hidden sm:inline">Job Roles</span>
+              <span className="sm:hidden">Roles</span>
             </TabsTrigger>
             <TabsTrigger value="notifications" className="text-xs sm:text-sm font-medium px-2 py-2">
               <span className="hidden sm:inline">Notifications</span>
@@ -876,6 +1161,21 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
               <DepartmentsSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="job-roles" className="space-y-4">
+          <Card className="bg-white rounded-xl shadow-sm border-0 w-full max-w-5xl">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900">Job Role Management</CardTitle>
+              <CardDescription className="text-sm text-gray-600 mt-1">
+                Manage job roles for team members. These roles are used when creating user accounts
+                and can be associated with departments for better organization.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <JobRolesSection />
             </CardContent>
           </Card>
         </TabsContent>
