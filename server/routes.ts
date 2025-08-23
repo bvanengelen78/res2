@@ -4437,6 +4437,18 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
+  // RBAC User Profiles - delegate to new API handler for User Management interface
+  app.get("/api/rbac/user-profiles", async (req, res) => {
+    try {
+      // Import and use the new Vercel API endpoint with service role key (bypasses RLS)
+      const userProfilesHandler = await import('../api/rbac/user-profiles.js');
+      return await userProfilesHandler.default(req, res);
+    } catch (error) {
+      console.error('Error delegating to user-profiles endpoint:', error);
+      res.status(500).json({ message: "Failed to fetch user profiles" });
+    }
+  });
+
   app.post("/api/rbac/update-role-permissions", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const { role, permissions } = req.body;

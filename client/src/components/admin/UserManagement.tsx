@@ -34,66 +34,27 @@ export function UserManagement() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  // Fetch users with roles
+  // Fetch users with roles using backend API (bypasses RLS)
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async () => {
       try {
-        // First, get all user profiles
-        const { data: userProfiles, error: profilesError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .order('created_at', { ascending: false })
+        const session = await supabase.auth.getSession()
+        const response = await fetch('/api/rbac/user-profiles', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.data.session?.access_token}`,
+          },
+        })
 
-        if (profilesError) throw profilesError
-
-        // Then, get user roles with role details for each user
-        const usersWithRoles: UserWithRoles[] = []
-
-        for (const profile of userProfiles || []) {
-          const { data: userRoles, error: rolesError } = await supabase
-            .from('user_roles')
-            .select(`
-              id,
-              assigned_at,
-              assigned_by,
-              is_active,
-              roles (
-                id,
-                name,
-                description,
-                is_active
-              )
-            `)
-            .eq('user_id', profile.id)
-            .eq('is_active', true)
-
-          if (rolesError) {
-            // Continue with empty roles rather than failing completely
-            usersWithRoles.push({
-              ...profile,
-              roles: [],
-              role_assignments: []
-            })
-            continue
-          }
-
-          const roles = userRoles?.map(ur => ur.roles).filter(Boolean) || []
-          const roleAssignments = userRoles?.map(ur => ({
-            id: ur.id,
-            role: ur.roles,
-            assigned_at: ur.assigned_at,
-            assigned_by: ur.assigned_by
-          })).filter(ra => ra.role) || []
-
-          usersWithRoles.push({
-            ...profile,
-            roles,
-            role_assignments: roleAssignments
-          })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to fetch user profiles')
         }
 
-        return usersWithRoles
+        const result = await response.json()
+        return result.data || []
       } catch (error) {
         throw error
       }
