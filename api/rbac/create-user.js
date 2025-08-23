@@ -4,7 +4,6 @@
 
 const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
-const { DatabaseService } = require('../lib/supabase');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
@@ -134,19 +133,29 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       email
     });
 
-    // Create resource
+    // Create resource directly using Supabase
     Logger.info('Creating resource for new user', { name, email, department, jobRole });
-    const resource = await DatabaseService.createResource({
-      name,
-      email,
-      role: jobRole,
-      department,
-      capacity,
-      skills: [],
-      hourlyRate: 0,
-      isActive: true,
-    });
+    const { data: resourceData, error: resourceError } = await supabase
+      .from('resources')
+      .insert({
+        name,
+        email,
+        role: jobRole,
+        department,
+        capacity,
+        skills: [],
+        hourly_rate: 0,
+        is_active: true,
+      })
+      .select()
+      .single();
 
+    if (resourceError) {
+      Logger.error('Failed to create resource', resourceError, { name, email });
+      throw new Error(`Resource creation error: ${resourceError.message}`);
+    }
+
+    const resource = resourceData;
     Logger.info('Resource created successfully', {
       resourceId: resource.id,
       name,
