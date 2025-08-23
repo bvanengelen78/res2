@@ -256,12 +256,27 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
 
   const createUserMutation = useMutation({
     mutationFn: async (data: UserRegistrationData) => {
+      // Get session and add debugging
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      console.log('Session debug:', {
+        hasSession: !!sessionData.session,
+        hasAccessToken: !!sessionData.session?.access_token,
+        tokenLength: sessionData.session?.access_token?.length || 0,
+        sessionError: sessionError?.message,
+        user: sessionData.session?.user?.email
+      });
+
+      if (!sessionData.session?.access_token) {
+        throw new Error('No authentication token available. Please log in again.');
+      }
+
       // Use our backend API to create user with proper RBAC integration
       const response = await fetch('/api/rbac/create-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
         },
         body: JSON.stringify({
           name: `${data.firstName} ${data.lastName}`,
