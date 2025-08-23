@@ -169,9 +169,34 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
 
     const authUserId = authData.user.id;
     Logger.info('User created in Supabase Auth successfully', {
+      step: 'auth_user_extracted',
       authUserId,
       email
     });
+
+    // Small delay to ensure database trigger completes
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Check if profile was already created by trigger
+    Logger.info('Checking if profile was created by trigger', { step: 'check_trigger_profile', authUserId });
+    const { data: existingTriggerProfile } = await supabase
+      .from('user_profiles')
+      .select('id, email, created_at')
+      .eq('id', authUserId)
+      .single();
+
+    if (existingTriggerProfile) {
+      Logger.info('Profile already created by trigger', {
+        step: 'trigger_profile_found',
+        profileId: existingTriggerProfile.id,
+        createdAt: existingTriggerProfile.created_at
+      });
+    } else {
+      Logger.info('No profile found from trigger, will create manually', {
+        step: 'no_trigger_profile',
+        authUserId
+      });
+    }
 
     // Create resource directly using Supabase
     Logger.info('Creating resource for new user', { name, email, department, jobRole });
@@ -201,30 +226,42 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       email
     });
 
-    // Create user profile in our database
-    Logger.info('Creating user profile', { authUserId, email, resourceId: resource.id });
+    // Create or update user profile in our database
+    // Note: The database trigger may have already created a basic profile
+    Logger.info('Creating/updating user profile', { authUserId, email, resourceId: resource.id });
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
-      .insert({
+      .upsert({
         id: authUserId,
         email: email,
         first_name: firstName,
         last_name: lastName,
         resource_id: resource.id,
         is_active: true,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id'
       })
       .select()
       .single();
 
     if (profileError) {
-      Logger.error('Failed to create user profile', profileError, { authUserId, email });
+      Logger.error('Failed to create/update user profile', {
+        step: 'profile_creation_failed',
+        error: profileError.message,
+        code: profileError.code,
+        authUserId,
+        email
+      });
       throw new Error(`Profile creation error: ${profileError.message}`);
     }
 
-    Logger.info('User profile created successfully', {
+    Logger.info('User profile created/updated successfully', {
+      step: 'profile_created',
       userId: userProfile.id,
       email,
-      resourceId: resource.id
+      resourceId: resource.id,
+      wasUpdated: userProfile.updated_at !== userProfile.created_at
     });
 
     // Assign initial role
