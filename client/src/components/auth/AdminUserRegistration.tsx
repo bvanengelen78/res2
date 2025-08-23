@@ -322,7 +322,7 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
 
       return await response.json()
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const createdPassword = data.defaultPassword || generatedPassword
       setSuccess(`User ${data.user.email} created successfully!`)
       setGeneratedPassword(createdPassword)
@@ -333,11 +333,28 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
         description: `User account for ${data.user.email} has been created with ${data.user.role} role.`,
       })
 
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      queryClient.invalidateQueries({ queryKey: ['rbac', 'users'] })
+      // Comprehensive cache invalidation for all user-related queries
+      try {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+          queryClient.invalidateQueries({ queryKey: ['rbac', 'users'] }),
+          queryClient.invalidateQueries({ queryKey: ["/api/rbac-users"] }),
+          // Also invalidate auth queries in case user profile was updated
+          queryClient.invalidateQueries({ queryKey: ['auth', 'user'] }),
+        ])
 
-      onUserCreated?.()
+        console.log('✅ Cache invalidation completed successfully')
+
+        // Small delay to ensure UI has time to process the cache invalidation
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Call the callback after cache invalidation is complete
+        onUserCreated?.()
+      } catch (error) {
+        console.error('❌ Cache invalidation failed:', error)
+        // Still call the callback even if cache invalidation fails
+        onUserCreated?.()
+      }
 
       // Don't auto-close dialog to allow password copying
     },

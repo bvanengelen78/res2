@@ -249,8 +249,17 @@ export function UserManagement() {
                 Manage user accounts, roles, and permissions
               </CardDescription>
             </div>
-            <AdminUserRegistration 
-              onUserCreated={() => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })}
+            <AdminUserRegistration
+              onUserCreated={() => {
+                // Cache invalidation is handled by AdminUserRegistration component
+                // Provide additional user feedback
+                toast({
+                  title: "User List Updated",
+                  description: "The user management interface has been refreshed with the new user.",
+                  duration: 3000,
+                })
+                console.log('User created successfully - UI refreshed automatically')
+              }}
             />
           </div>
         </CardHeader>
