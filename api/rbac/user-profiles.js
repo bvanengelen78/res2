@@ -19,6 +19,28 @@ if (supabaseUrl && supabaseServiceKey) {
   });
 }
 
+// Helper function to deduplicate roles by role ID
+function deduplicateRoles(roles) {
+  const seen = new Set();
+  return roles.filter(role => {
+    if (!role || !role.id) return false;
+    if (seen.has(role.id)) return false;
+    seen.add(role.id);
+    return true;
+  });
+}
+
+// Helper function to deduplicate role assignments by assignment ID
+function deduplicateRoleAssignments(roleAssignments) {
+  const seen = new Set();
+  return roleAssignments.filter(assignment => {
+    if (!assignment || !assignment.id) return false;
+    if (seen.has(assignment.id)) return false;
+    seen.add(assignment.id);
+    return true;
+  });
+}
+
 // Get all user profiles with their roles
 async function getAllUserProfilesWithRoles() {
   try {
@@ -44,9 +66,16 @@ async function getAllUserProfilesWithRoles() {
     Logger.info('Fetched user profiles:', { count: userProfiles?.length || 0 });
 
     const usersWithRoles = [];
+    const processedUserIds = new Set(); // Track processed users to prevent duplicates
 
     // For each user profile, get their roles
     for (const profile of userProfiles || []) {
+      // Skip if we've already processed this user
+      if (processedUserIds.has(profile.id)) {
+        Logger.debug('Skipping duplicate user:', { userId: profile.id, email: profile.email });
+        continue;
+      }
+
       try {
         const { data: userRoles, error: rolesError } = await supabase
           .from('user_roles')
@@ -66,51 +95,62 @@ async function getAllUserProfilesWithRoles() {
           .eq('user_id', profile.id)
           .eq('is_active', true);
 
+        let roles = [];
+        let roleAssignments = [];
+
         if (rolesError) {
           Logger.warn('Error fetching roles for user:', { userId: profile.id, email: profile.email, error: rolesError });
           // Continue with empty roles rather than failing completely
-          usersWithRoles.push({
-            ...profile,
-            roles: [],
-            role_assignments: []
-          });
-          continue;
+        } else {
+          // Extract and deduplicate roles
+          const rawRoles = userRoles?.map(ur => ur.roles).filter(Boolean) || [];
+          roles = deduplicateRoles(rawRoles);
+
+          // Extract and deduplicate role assignments
+          const rawRoleAssignments = userRoles?.map(ur => ({
+            id: ur.id,
+            role: ur.roles,
+            assigned_at: ur.assigned_at,
+            assigned_by: ur.assigned_by
+          })).filter(ra => ra.role) || [];
+          roleAssignments = deduplicateRoleAssignments(rawRoleAssignments);
         }
 
-        const roles = userRoles?.map(ur => ur.roles).filter(Boolean) || [];
-        const roleAssignments = userRoles?.map(ur => ({
-          id: ur.id,
-          role: ur.roles,
-          assigned_at: ur.assigned_at,
-          assigned_by: ur.assigned_by
-        })).filter(ra => ra.role) || [];
-
+        // Add user to results (only once)
         usersWithRoles.push({
           ...profile,
           roles,
           role_assignments: roleAssignments
         });
 
-        Logger.debug('User profile with roles:', { 
-          userId: profile.id, 
-          email: profile.email, 
-          rolesCount: roles.length 
+        // Mark this user as processed
+        processedUserIds.add(profile.id);
+
+        Logger.debug('User profile with roles:', {
+          userId: profile.id,
+          email: profile.email,
+          rolesCount: roles.length,
+          roleAssignmentsCount: roleAssignments.length
         });
 
       } catch (error) {
         Logger.error('Error processing user roles:', { userId: profile.id, error });
-        // Continue with empty roles for this user
-        usersWithRoles.push({
-          ...profile,
-          roles: [],
-          role_assignments: []
-        });
+        // Add user with empty roles (only if not already processed)
+        if (!processedUserIds.has(profile.id)) {
+          usersWithRoles.push({
+            ...profile,
+            roles: [],
+            role_assignments: []
+          });
+          processedUserIds.add(profile.id);
+        }
       }
     }
 
-    Logger.info('Successfully processed user profiles with roles:', { 
+    Logger.info('Successfully processed user profiles with roles:', {
       totalUsers: usersWithRoles.length,
-      usersWithRoles: usersWithRoles.filter(u => u.roles.length > 0).length
+      usersWithRoles: usersWithRoles.filter(u => u.roles.length > 0).length,
+      processedUserIds: processedUserIds.size
     });
 
     return usersWithRoles;
