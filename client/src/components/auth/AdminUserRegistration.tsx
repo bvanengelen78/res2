@@ -277,8 +277,32 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create user')
+        console.error('User creation failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          headers: Object.fromEntries(response.headers.entries())
+        })
+
+        let errorMessage = 'Failed to create user'
+        try {
+          const errorData = await response.json()
+          console.error('Error response data:', errorData)
+          errorMessage = errorData.error || errorMessage
+        } catch (parseError) {
+          // If JSON parsing fails, try to get text
+          try {
+            const errorText = await response.text()
+            console.error('Error response text:', errorText)
+            if (errorText && errorText.length < 200) {
+              errorMessage = errorText
+            }
+          } catch (textError) {
+            console.error('Could not parse error response:', textError)
+          }
+        }
+
+        throw new Error(errorMessage)
       }
 
       return await response.json()
@@ -304,7 +328,16 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
     },
     onError: (error: Error) => {
       console.error('User creation error:', error)
-      
+
+      // Enhanced error logging for debugging
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        cause: error.cause,
+        timestamp: new Date().toISOString()
+      })
+
       let errorMessage = "Failed to create user. Please try again."
       
       if (error.message.includes('User already registered')) {

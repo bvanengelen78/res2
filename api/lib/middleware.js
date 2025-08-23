@@ -4,6 +4,13 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Add debugging for environment variables
+console.log('[MIDDLEWARE] Environment check:', {
+  hasSupabaseUrl: !!supabaseUrl,
+  hasServiceKey: !!supabaseServiceKey,
+  nodeEnv: process.env.NODE_ENV
+});
+
 let supabase = null;
 if (supabaseUrl && supabaseServiceKey) {
   supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -12,6 +19,9 @@ if (supabaseUrl && supabaseServiceKey) {
       persistSession: false
     }
   });
+  console.log('[MIDDLEWARE] Supabase client initialized successfully');
+} else {
+  console.error('[MIDDLEWARE] Failed to initialize Supabase client - missing environment variables');
 }
 
 // Logger utility

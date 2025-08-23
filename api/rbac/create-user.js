@@ -76,10 +76,12 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       adminEmail: user.email,
       newUserEmail: email,
       newUserName: name,
-      assignedRole: role
+      assignedRole: role,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
     });
 
-    // Check if user already exists in Supabase Auth
+    // Use Supabase client from middleware
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
@@ -91,6 +93,12 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
         }
       }
     );
+
+    // Verify Supabase connection
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      Logger.error('Missing Supabase environment variables');
+      return createErrorResponse(res, 500, 'Database configuration error');
+    }
 
     // Check if user already exists in our user_profiles table
     const { data: existingProfile } = await supabase
@@ -288,7 +296,12 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       }
     });
 
-    return createErrorResponse(res, 500, 'Failed to create user');
+    // Return more specific error information for debugging
+    const errorMessage = process.env.NODE_ENV === 'development'
+      ? `Failed to create user: ${error.message}`
+      : 'Failed to create user';
+
+    return createErrorResponse(res, 500, errorMessage);
   }
 };
 
