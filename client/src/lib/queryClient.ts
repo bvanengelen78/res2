@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { supabase } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -22,13 +23,31 @@ export async function apiRequest(
     console.log(`[API_REQUEST] Request body:`, body);
   }
 
+  // Get the current session token from Supabase
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    console.warn(`[API_REQUEST] Session error:`, sessionError);
+  }
+
+  // Prepare headers with authentication
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...headers,
+  };
+
+  // Add Authorization header if we have a session
+  if (session?.access_token) {
+    requestHeaders['Authorization'] = `Bearer ${session.access_token}`;
+    console.log(`[API_REQUEST] Added Authorization header with token`);
+  } else {
+    console.warn(`[API_REQUEST] No session token available for authentication`);
+  }
+
   try {
     const res = await fetch(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
+      headers: requestHeaders,
       body,
       credentials: "include",
     });
@@ -98,8 +117,24 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Get the current session token from Supabase
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.warn(`[QUERY_FN] Session error:`, sessionError);
+    }
+
+    // Prepare headers with authentication
+    const headers: Record<string, string> = {};
+
+    // Add Authorization header if we have a session
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

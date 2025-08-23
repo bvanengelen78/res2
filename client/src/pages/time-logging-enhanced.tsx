@@ -18,8 +18,7 @@ import { format, startOfWeek, addDays, parseISO, getWeek, getYear, isToday } fro
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { useAuth } from '@/context/AuthContext';
-import { useRBAC } from '@/hooks/useRBAC';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { TimeEntry, WeeklySubmission, Resource, ResourceAllocation, Project } from '@shared/schema';

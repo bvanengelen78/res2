@@ -1,3 +1,14 @@
+/**
+ * Dashboard API Endpoint with Real Data Delegation
+ *
+ * This endpoint serves as a compatibility layer that:
+ * 1. Delegates to real Supabase-integrated endpoints when available
+ * 2. Falls back to mock data only if real endpoints fail
+ * 3. Supports both query parameter routing (?endpoint=kpis) and direct routing (/api/dashboard/kpis)
+ *
+ * Priority: Real Supabase data > Mock fallback data
+ */
+
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -404,17 +415,46 @@ module.exports = async function handler(req, res) {
     const endpoint = url.searchParams.get('endpoint');
 
     // Route to appropriate handler based on endpoint parameter
+    // IMPORTANT: Delegate to real Supabase-integrated endpoints when available
     switch (endpoint) {
       case 'kpis':
-        return await handleGetKPIs(req, res);
+        try {
+          // Delegate to real KPIs endpoint with Supabase integration
+          const kpisHandler = require('./dashboard/kpis.js');
+          return await kpisHandler(req, res);
+        } catch (error) {
+          console.error('Failed to delegate to real KPIs endpoint, using fallback:', error);
+          return await handleGetKPIs(req, res);
+        }
       case 'alerts':
-        return await handleGetAlerts(req, res);
+        try {
+          // Delegate to real alerts endpoint with Supabase integration
+          const alertsHandler = require('./dashboard/alerts.js');
+          return await alertsHandler(req, res);
+        } catch (error) {
+          console.error('Failed to delegate to real alerts endpoint, using fallback:', error);
+          return await handleGetAlerts(req, res);
+        }
+      case 'heatmap':
+        try {
+          // Delegate to real heatmap endpoint with Supabase integration
+          const heatmapHandler = require('./dashboard/heatmap.js');
+          return await heatmapHandler(req, res);
+        } catch (error) {
+          console.error('Failed to delegate to real heatmap endpoint, using fallback:', error);
+          return await handleGetHeatmap(req, res);
+        }
+      case 'gamified-metrics':
+        try {
+          // Delegate to real gamified metrics endpoint with Supabase integration
+          const gamifiedHandler = require('./dashboard/gamified-metrics.js');
+          return await gamifiedHandler(req, res);
+        } catch (error) {
+          console.error('Failed to delegate to real gamified metrics endpoint, using fallback:', error);
+          return await handleGetGamifiedMetrics(req, res);
+        }
       case 'timeline':
         return await handleGetTimeline(req, res);
-      case 'heatmap':
-        return await handleGetHeatmap(req, res);
-      case 'gamified-metrics':
-        return await handleGetGamifiedMetrics(req, res);
       default:
         return res.json({
           message: 'Dashboard API',

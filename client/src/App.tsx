@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import Dashboard from "@/pages/dashboard";
@@ -23,17 +23,10 @@ import SubmissionOverview from "@/pages/submission-overview";
 import Settings from "@/pages/settings";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
-import { EnhancedUIDemo } from "@/components/enhanced-ui-demo";
-import { TooltipDemo } from "@/components/tooltip-demo";
-import { ResourceTooltipTest } from "@/components/resource-tooltip-test";
-import { TooltipImprovementsTest } from "@/components/tooltip-improvements-test";
-import { UtilizationBarTest } from "@/components/utilization-bar-test";
-import { KpiCardDemo } from "@/components/ui/kpi-card-demo";
-import { AllocationInputTest } from "@/components/allocation-input-test";
-import { CelebrationTest } from "@/components/celebration-test";
+import UserManagementPage from "@/pages/user-management";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useSupabaseAuth();
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -77,14 +70,7 @@ function Router() {
           <Route path="/business-controller-report" component={BusinessControllerReport} />
           <Route path="/submission-overview" component={SubmissionOverview} />
           <Route path="/settings" component={Settings} />
-          <Route path="/demo" component={EnhancedUIDemo} />
-          <Route path="/tooltip-demo" component={TooltipDemo} />
-          <Route path="/resource-tooltip-test" component={ResourceTooltipTest} />
-          <Route path="/tooltip-improvements-test" component={TooltipImprovementsTest} />
-          <Route path="/utilization-bar-test" component={UtilizationBarTest} />
-          <Route path="/allocation-input-test" component={AllocationInputTest} />
-          <Route path="/celebration-test" component={CelebrationTest} />
-          <Route path="/kpi-card-demo" component={KpiCardDemo} />
+          <Route path="/user-management" component={UserManagementPage} />
           <Route component={NotFound} />
         </Switch>
       </div>
@@ -95,12 +81,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+      <SupabaseAuthProvider>
         <TooltipProvider>
           <Toaster />
           <Router />
         </TooltipProvider>
-      </AuthProvider>
+      </SupabaseAuthProvider>
     </QueryClientProvider>
   );
 }

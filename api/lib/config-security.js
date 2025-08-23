@@ -214,7 +214,7 @@ class ConfigSecurityService {
     
     for (const sensitiveVar of CONFIG_REQUIREMENTS.SENSITIVE_VARS) {
       if (sanitized[sensitiveVar]) {
-        sanitized[sensitiveVar] = `[REDACTED:${sanitiveVar.substring(0, 8)}...]`;
+        sanitized[sensitiveVar] = `[REDACTED:${sensitiveVar.substring(0, 8)}...]`;
       }
     }
     

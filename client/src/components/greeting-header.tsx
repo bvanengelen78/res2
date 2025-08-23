@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { useAuth } from '@/hooks/useAuth';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 
 interface GreetingHeaderProps {
   className?: string;
@@ -12,7 +12,7 @@ interface GreetingHeaderProps {
  * Derived from existing dashboard patterns in the codebase
  */
 export const GreetingHeader: React.FC<GreetingHeaderProps> = ({ className = "" }) => {
-  const { user } = useAuth();
+  const { user } = useSupabaseAuth();
 
   // Get user's first name for personalization
   const getUserFirstName = () => {

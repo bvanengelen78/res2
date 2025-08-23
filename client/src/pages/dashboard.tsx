@@ -9,10 +9,12 @@ import { ProjectForm } from "@/components/project-form";
 import { RoleSkillHeatmap } from "@/components/role-skill-heatmap";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { DashboardErrorBoundary } from "@/components/dashboard-error-boundary";
+import { PermissionGuard } from "@/components/auth/RBACGuard";
+import { RoleBasedDashboard } from "@/components/dashboard/RoleBasedDashboard";
 import { ChangeAllocationReportModal } from "@/components/change-allocation-report-modal";
 import { GamifiedKpiTiles } from "@/components/gamified-kpi-tiles";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { getPeriodInfo, getPeriodLabel, getPeriodComparisonText, type PeriodFilter } from "@/lib/period-utils";
 import { useState, useEffect, useCallback } from "react";
 import { Sparkles, BarChart3, AlertTriangle, Users, Clock, TrendingUp, Zap, Filter } from "lucide-react";
@@ -228,7 +230,7 @@ export default function Dashboard() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [animationConfig, setAnimationConfig] = useState(() => applyOptimizedAnimations());
-  const { user } = useAuth();
+  const { user } = useSupabaseAuth();
 
   // Use shared period utility function
 
@@ -439,7 +441,8 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="relative dashboard-blue-theme">
+    <PermissionGuard permission="dashboard">
+      <main className="relative dashboard-blue-theme">
       {/* Enhanced Header with Gradient Background */}
       <div className={`relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden ${
         isInitialLoad ? 'dashboard-entrance dashboard-entrance-header gpu-accelerated' : ''
@@ -512,6 +515,15 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+        {/* Role-Based Dashboard Section */}
+        <section className={`transition-all duration-500 ease-in-out ${
+          isInitialLoad ? 'dashboard-entrance dashboard-entrance-role-based gpu-accelerated' : ''
+        }`}>
+          <DashboardErrorBoundary componentName="Role-Based Dashboard">
+            <RoleBasedDashboard />
+          </DashboardErrorBoundary>
+        </section>
 
         {/* Top Section: KPI Cards - Always Visible */}
         <section className={`transition-all duration-500 ease-in-out ${
@@ -714,5 +726,6 @@ export default function Dashboard() {
       />
 
     </main>
+    </PermissionGuard>
   );
 }

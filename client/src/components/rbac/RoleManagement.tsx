@@ -17,11 +17,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
-import { RoleGuard } from "@/components/rbac/RoleGuard";
+import { RoleManagementGuard } from "@/components/auth/RBACGuard";
 import { SetPasswordDialog } from "@/components/rbac/SetPasswordDialog";
 import { PERMISSIONS } from "@shared/schema";
 import type { RoleType, PermissionType } from "@shared/schema";
-import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 interface RolePermissionsEditorProps {
   role: RoleInfo;
@@ -161,7 +161,7 @@ export function RoleManagement() {
   const [editingRole, setEditingRole] = useState<RoleInfo | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { hasPermission } = useAuth();
+  const { hasPermission } = useSupabaseAuth();
 
   // Queries
   const { data: users, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useQuery({
@@ -479,7 +479,7 @@ export function RoleManagement() {
   }
 
   return (
-    <RoleGuard permission={PERMISSIONS.ROLE_MANAGEMENT}>
+    <RoleManagementGuard>
       <div className="space-y-6">
         {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -907,6 +907,6 @@ export function RoleManagement() {
           }}
         />
       </div>
-    </RoleGuard>
+    </RoleManagementGuard>
   );
 }

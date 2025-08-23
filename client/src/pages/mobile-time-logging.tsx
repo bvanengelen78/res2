@@ -26,8 +26,7 @@ import {
 import { format, startOfWeek, addDays, parseISO, getWeek, getYear, isToday, addWeeks, subWeeks } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { useRBAC } from '@/hooks/useRBAC';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useIsDesktop } from '@/hooks/use-desktop';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,6 +35,7 @@ import { MobileSmartReminders } from '@/components/mobile-smart-reminders';
 import { AdminResourceSelector, useAdminResourceSelection } from '@/components/admin-resource-selector';
 import { AdminConfirmationDialog, useAdminConfirmation } from '@/components/admin-confirmation-dialog';
 import type { TimeEntry, WeeklySubmission, Resource, ResourceAllocation, Project } from '@shared/schema';
+import { TimeLoggingGuard } from "@/components/auth/RBACGuard";
 import "@/styles/dashboard-blue-theme.css";
 
 // Types for our enhanced interface
@@ -1631,7 +1631,7 @@ function SubmissionFlow({
 }: SubmissionFlowProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { hasPermission } = useRBAC();
+  const { hasPermission } = useSupabaseAuth();
   const [showCelebration, setShowCelebration] = useState(false);
   const adminConfirmation = useAdminConfirmation();
 
@@ -1942,8 +1942,7 @@ function SubmissionFlow({
 
 // Main Mobile Time Logging Component
 export default function MobileTimeLogging() {
-  const { user } = useAuth();
-  const { hasPermission } = useRBAC();
+  const { user, hasPermission } = useSupabaseAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -2139,7 +2138,8 @@ export default function MobileTimeLogging() {
   }, [selectedResourceId, selectedWeek, hasUserNavigated, weekStatuses.length, allocationsLoading, allocationsError, allocations.length, adminResourceSelection, user]);
 
   return (
-    <div className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <TimeLoggingGuard>
+      <div className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Enhanced Header with Gradient Background */}
       <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-800/30"></div>
@@ -2284,5 +2284,6 @@ export default function MobileTimeLogging() {
         />
       </div>
     </div>
+    </TimeLoggingGuard>
   );
 }

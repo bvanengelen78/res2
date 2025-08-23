@@ -1,18 +1,18 @@
 // RBAC Assign Role Endpoint
-// Assigns roles to users for Role Management functionality
+// POST /api/rbac/assign-role
+// Assigns a role to a user (admin only)
 
+const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { createClient } = require('@supabase/supabase-js');
-const { z } = require('zod');
-
-// Configuration
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 let supabase = null;
-if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
@@ -22,148 +22,153 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
 
 // Input validation schema
 const assignRoleSchema = z.object({
-  resourceId: z.number().min(1, 'Resource ID is required'),
-  role: z.enum(['regular_user', 'change_lead', 'manager_change', 'business_controller', 'admin'], {
-    errorMap: () => ({ message: 'Invalid role specified' })
-  })
+  userId: z.string().uuid('Invalid user ID format'),
+  roleName: z.enum(['user', 'manager', 'admin'], {
+    errorMap: () => ({ message: 'Role must be one of: user, manager, admin' })
+  }),
 });
 
-// Assign role to user
-async function assignRoleToUser(resourceId, role, assignedBy) {
-  try {
-    if (!supabase) {
-      throw new Error('Database not available');
-    }
-
-    // First, check if the resource exists
-    const { data: resource, error: resourceError } = await supabase
-      .from('resources')
-      .select('id, name, email')
-      .eq('id', resourceId)
-      .single();
-
-    if (resourceError || !resource) {
-      throw new Error('Resource not found');
-    }
-
-    // Check if user exists for this resource
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id, email, resource_id')
-      .eq('resource_id', resourceId)
-      .single();
-
-    if (userError || !user) {
-      throw new Error('User not found for this resource');
-    }
-
-    // Check if role already exists
-    const { data: existingRole, error: existingRoleError } = await supabase
-      .from('user_roles')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('role', role)
-      .eq('resource_id', resourceId)
-      .single();
-
-    if (existingRole) {
-      throw new Error('User already has this role');
-    }
-
-    // Assign the role
-    const { data: newRole, error: assignError } = await supabase
-      .from('user_roles')
-      .insert({
-        user_id: user.id,
-        resource_id: resourceId,
-        role: role,
-        assigned_at: new Date().toISOString(),
-        assigned_by: assignedBy
-      })
-      .select()
-      .single();
-
-    if (assignError) {
-      throw assignError;
-    }
-
-    Logger.info('Role assigned successfully', {
-      userId: user.id,
-      resourceId,
-      role,
-      assignedBy,
-      roleId: newRole.id
-    });
-
-    return {
-      success: true,
-      message: `Role ${role} assigned to ${resource.name}`,
-      roleId: newRole.id
-    };
-
-  } catch (error) {
-    Logger.error('Error assigning role', { 
-      error: error.message, 
-      resourceId, 
-      role, 
-      assignedBy 
-    });
-    throw error;
-  }
-}
+// Note: Old assignRoleToUser function removed - using new RBAC schema
 
 // Main handler
 const assignRoleHandler = async (req, res, { user, validatedData }) => {
   try {
-    Logger.info('RBAC Assign Role request', { 
-      method: req.method, 
-      userId: user?.id,
-      data: validatedData
+    const { userId, roleName } = validatedData;
+
+    Logger.info('RBAC assign role request', {
+      adminUserId: user.id,
+      adminEmail: user.email,
+      targetUserId: userId,
+      roleName
     });
 
-    if (req.method !== 'POST') {
-      return createErrorResponse(res, 405, `Method ${req.method} not allowed`);
+    if (!supabase) {
+      return createErrorResponse(res, 500, 'Database service unavailable');
     }
 
-    // Check if user has role management permission
-    if (!user?.permissions?.includes('role_management')) {
-      return createErrorResponse(res, 403, 'Insufficient permissions for role management');
+    // Check if user exists
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError || !existingUser) {
+      Logger.warn('Assign role failed - user not found', {
+        userId,
+        adminUserId: user.id,
+        error: fetchError?.message
+      });
+      return createErrorResponse(res, 404, 'User not found');
     }
 
-    const { resourceId, role } = validatedData;
+    if (!existingUser.is_active) {
+      Logger.warn('Assign role failed - user is deactivated', {
+        userId,
+        adminUserId: user.id
+      });
+      return createErrorResponse(res, 400, 'Cannot assign role to deactivated user');
+    }
 
-    // Assign the role
-    const result = await assignRoleToUser(resourceId, role, user.id);
+    // Get role ID from roles table
+    const { data: roleData, error: roleError } = await supabase
+      .from('roles')
+      .select('id, name, display_name')
+      .eq('name', roleName)
+      .eq('is_active', true)
+      .single();
 
-    Logger.info('RBAC Assign Role success', { 
-      resourceId,
-      role,
-      assignedBy: user.id,
-      result
+    if (roleError || !roleData) {
+      Logger.error('Failed to find role', roleError, { roleName });
+      return createErrorResponse(res, 400, `Role not found: ${roleName}`);
+    }
+
+    // Deactivate existing roles first
+    const { error: deactivateError } = await supabase
+      .from('user_roles')
+      .update({
+        is_active: false,
+        deactivated_at: new Date().toISOString(),
+        deactivated_by: user.id
+      })
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (deactivateError) {
+      Logger.error('Failed to deactivate existing roles', deactivateError, {
+        userId,
+        adminUserId: user.id
+      });
+      throw new Error(`Failed to deactivate existing roles: ${deactivateError.message}`);
+    }
+
+    // Assign new role
+    const { data: newRoleAssignment, error: assignError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: userId,
+        role_id: roleData.id,
+        assigned_by: user.id,
+        assigned_at: new Date().toISOString(),
+        is_active: true,
+      })
+      .select(`
+        id,
+        assigned_at,
+        assigned_by,
+        is_active,
+        roles (
+          id,
+          name,
+          display_name,
+          description
+        )
+      `)
+      .single();
+
+    if (assignError) {
+      Logger.error('Failed to assign role', assignError, {
+        userId,
+        roleId: roleData.id,
+        adminUserId: user.id
+      });
+      throw new Error(`Role assignment error: ${assignError.message}`);
+    }
+
+    Logger.info('Role assigned successfully', {
+      userId,
+      roleName,
+      roleId: roleData.id,
+      assignmentId: newRoleAssignment.id,
+      adminUserId: user.id
     });
 
-    return createSuccessResponse(res, result);
+    return createSuccessResponse(res, {
+      message: 'Role assigned successfully',
+      assignment: {
+        id: newRoleAssignment.id,
+        userId: userId,
+        role: newRoleAssignment.roles,
+        assignedAt: newRoleAssignment.assigned_at,
+        assignedBy: newRoleAssignment.assigned_by,
+        isActive: newRoleAssignment.is_active
+      },
+      user: {
+        id: existingUser.id,
+        email: existingUser.email,
+        firstName: existingUser.first_name,
+        lastName: existingUser.last_name,
+        fullName: existingUser.full_name
+      }
+    });
 
   } catch (error) {
-    Logger.error('RBAC Assign Role error', { 
-      error: error.message, 
-      stack: error.stack,
-      userId: user?.id,
-      data: req.body
+    Logger.error('Assign role failed', error, {
+      userId: validatedData.userId,
+      roleName: validatedData.roleName,
+      adminUserId: user.id
     });
-
-    // Return specific error messages for common issues
-    if (error.message.includes('Resource not found')) {
-      return createErrorResponse(res, 404, 'Resource not found');
-    }
-    if (error.message.includes('User not found')) {
-      return createErrorResponse(res, 404, 'User not found for this resource');
-    }
-    if (error.message.includes('already has this role')) {
-      return createErrorResponse(res, 409, 'User already has this role');
-    }
-
-    return createErrorResponse(res, 500, 'Failed to assign role');
+    return createErrorResponse(res, 500, error.message || 'Failed to assign role');
   }
 };
 

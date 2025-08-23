@@ -21,8 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
-import { useRBAC } from '@/hooks/useRBAC';
+import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import type { Resource } from '@shared/schema';
 
 interface AdminResourceSelectorProps {
@@ -36,8 +35,7 @@ export function AdminResourceSelector({
   onResourceChange,
   className
 }: AdminResourceSelectorProps) {
-  const { user } = useAuth();
-  const { hasPermission } = useRBAC();
+  const { user, hasPermission } = useSupabaseAuth();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Check if user has admin permissions
@@ -271,7 +269,7 @@ export function AdminResourceSelector({
 // Hook for managing admin resource selection state
 export function useAdminResourceSelection(userResourceId?: number) {
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(userResourceId || null);
-  const { hasPermission } = useRBAC();
+  const { hasPermission } = useSupabaseAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = hasPermission('system_admin') || hasPermission('resource_management');

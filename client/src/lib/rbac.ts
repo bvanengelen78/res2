@@ -1,252 +1,335 @@
-import { 
-  PERMISSIONS, 
-  MENU_ITEMS, 
-  MENU_PERMISSIONS, 
-  ROLE_PERMISSIONS, 
-  ROLES,
-  type PermissionType, 
-  type RoleType, 
-  type MenuItemType 
-} from '@shared/schema';
-
-// User permissions interface
-export interface UserPermissions {
-  roles: Array<{ role: RoleType }>;
-  permissions: PermissionType[];
-}
+import { supabase } from './supabase'
+import type {
+  UserRole,
+  PermissionType,
+  RBACUser,
+  UserProfile,
+  Role,
+  Permission,
+  UserRoleAssignment,
+  PermissionCheck
+} from '@/types/rbac'
 
 /**
- * Central Role-Based Access Control (RBAC) utility
- * Provides centralized access control for the entire application
+ * RBAC Manager - Handles role and permission operations
  */
 export class RBACManager {
-  
   /**
-   * Check if user has a specific permission
+   * Get user profile with roles and permissions
    */
-  static hasPermission(user: UserPermissions | null, permission: PermissionType): boolean {
-    if (!user) return false;
-    return user.permissions.includes(permission);
-  }
+  static async getUserWithRBAC(userId: string): Promise<RBACUser | null> {
+    try {
+      // Get user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-  /**
-   * Check if user has any of the specified permissions
-   */
-  static hasAnyPermission(user: UserPermissions | null, permissions: PermissionType[]): boolean {
-    if (!user) return false;
-    return permissions.some(permission => user.permissions.includes(permission));
-  }
-
-  /**
-   * Check if user has all specified permissions
-   */
-  static hasAllPermissions(user: UserPermissions | null, permissions: PermissionType[]): boolean {
-    if (!user) return false;
-    return permissions.every(permission => user.permissions.includes(permission));
-  }
-
-  /**
-   * Check if user has a specific role
-   */
-  static hasRole(user: UserPermissions | null, role: RoleType): boolean {
-    if (!user) return false;
-    return user.roles.some(r => r.role === role);
-  }
-
-  /**
-   * Check if user has any of the specified roles
-   */
-  static hasAnyRole(user: UserPermissions | null, roles: RoleType[]): boolean {
-    if (!user) return false;
-    return roles.some(role => user.roles.some(r => r.role === role));
-  }
-
-  /**
-   * Check if user can access a specific menu item
-   */
-  static canAccessMenuItem(user: UserPermissions | null, menuItem: MenuItemType): boolean {
-    if (!user) return false;
-    
-    const requiredPermissions = MENU_PERMISSIONS[menuItem];
-    if (!requiredPermissions) return false;
-
-    return this.hasAnyPermission(user, requiredPermissions);
-  }
-
-  /**
-   * Get all accessible menu items for a user
-   */
-  static getAccessibleMenuItems(user: UserPermissions | null): MenuItemType[] {
-    if (!user) return [];
-    
-    return Object.keys(MENU_ITEMS).filter(key => {
-      const menuItem = MENU_ITEMS[key as keyof typeof MENU_ITEMS];
-      return this.canAccessMenuItem(user, menuItem);
-    }) as MenuItemType[];
-  }
-
-  /**
-   * Check if user is admin
-   */
-  static isAdmin(user: UserPermissions | null): boolean {
-    return this.hasRole(user, ROLES.ADMIN);
-  }
-
-  /**
-   * Check if user has system admin permissions
-   */
-  static isSystemAdmin(user: UserPermissions | null): boolean {
-    return this.hasPermission(user, PERMISSIONS.SYSTEM_ADMIN);
-  }
-
-  /**
-   * Check if user can manage roles
-   */
-  static canManageRoles(user: UserPermissions | null): boolean {
-    return this.hasPermission(user, PERMISSIONS.ROLE_MANAGEMENT);
-  }
-
-  /**
-   * Get user's role display names
-   */
-  static getUserRoleNames(user: UserPermissions | null): string[] {
-    if (!user) return [];
-    
-    return user.roles.map(role => {
-      switch (role.role) {
-        case ROLES.REGULAR_USER:
-          return 'Regular User';
-        case ROLES.CHANGE_LEAD:
-          return 'Change Lead';
-        case ROLES.MANAGER_CHANGE:
-          return 'Manager Change';
-        case ROLES.BUSINESS_CONTROLLER:
-          return 'Business Controller';
-        case ROLES.ADMIN:
-          return 'Admin';
-        default:
-          return role.role;
+      if (profileError || !profile) {
+        console.error('Error fetching user profile:', profileError)
+        return null
       }
-    });
+
+      // Get user roles with role details
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select(`
+          *,
+          role:roles(*)
+        `)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+
+      if (rolesError) {
+        console.error('Error fetching user roles:', rolesError)
+        return null
+      }
+
+      // Get user permissions
+      const permissions = await this.getUserPermissions(userId)
+
+      const rbacUser: RBACUser = {
+        ...profile,
+        roles: userRoles?.map(ur => ur.role).filter(Boolean) || [],
+        permissions: permissions || [],
+        role_assignments: userRoles || [],
+      }
+
+      return rbacUser
+    } catch (error) {
+      console.error('Error in getUserWithRBAC:', error)
+      return null
+    }
   }
 
   /**
-   * Get permissions for a specific role
+   * Get user permissions
    */
-  static getPermissionsForRole(role: RoleType): PermissionType[] {
-    return ROLE_PERMISSIONS[role] || [];
+  static async getUserPermissions(userId: string): Promise<PermissionType[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_user_permissions', { user_id: userId })
+
+      if (error) {
+        console.error('Error fetching user permissions:', error)
+        return []
+      }
+
+      return data?.map((row: any) => row.permission_name as PermissionType) || []
+    } catch (error) {
+      console.error('Error in getUserPermissions:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get user roles
+   */
+  static async getUserRoles(userId: string): Promise<UserRole[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_user_roles', { user_id: userId })
+
+      if (error) {
+        console.error('Error fetching user roles:', error)
+        return []
+      }
+
+      return data?.map((row: any) => row.role_name as UserRole) || []
+    } catch (error) {
+      console.error('Error in getUserRoles:', error)
+      return []
+    }
+  }
+
+  /**
+   * Check if user has specific permission
+   */
+  static async hasPermission(userId: string, permission: PermissionType): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .rpc('has_permission', {
+          user_id: userId,
+          permission_name: permission
+        })
+
+      if (error) {
+        console.error('Error checking permission:', error)
+        return false
+      }
+
+      return data || false
+    } catch (error) {
+      console.error('Error in hasPermission:', error)
+      return false
+    }
+  }
+
+  /**
+   * Check if user has specific role
+   */
+  static async hasRole(userId: string, role: UserRole): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .rpc('has_role', {
+          user_id: userId,
+          role_name: role
+        })
+
+      if (error) {
+        console.error('Error checking role:', error)
+        return false
+      }
+
+      return data || false
+    } catch (error) {
+      console.error('Error in hasRole:', error)
+      return false
+    }
+  }
+
+  /**
+   * Assign role to user
+   */
+  static async assignRole(
+    userId: string,
+    roleName: UserRole,
+    assignedBy: string,
+    resourceId?: number
+  ): Promise<boolean> {
+    try {
+      // Get role ID
+      const { data: role, error: roleError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('name', roleName)
+        .single()
+
+      if (roleError || !role) {
+        console.error('Error fetching role:', roleError)
+        return false
+      }
+
+      // Assign role to user
+      const { error: assignError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role_id: role.id,
+          resource_id: resourceId,
+          assigned_by: assignedBy,
+        })
+
+      if (assignError) {
+        console.error('Error assigning role:', assignError)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error in assignRole:', error)
+      return false
+    }
+  }
+
+  /**
+   * Remove role from user
+   */
+  static async removeRole(
+    userId: string,
+    roleName: UserRole,
+    resourceId?: number
+  ): Promise<boolean> {
+    try {
+      // Get role ID
+      const { data: role, error: roleError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('name', roleName)
+        .single()
+
+      if (roleError || !role) {
+        console.error('Error fetching role:', roleError)
+        return false
+      }
+
+      // Build query
+      let query = supabase
+        .from('user_roles')
+        .update({ is_active: false })
+        .eq('user_id', userId)
+        .eq('role_id', role.id)
+
+      if (resourceId !== undefined) {
+        query = query.eq('resource_id', resourceId)
+      }
+
+      const { error } = await query
+
+      if (error) {
+        console.error('Error removing role:', error)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error in removeRole:', error)
+      return false
+    }
   }
 
   /**
    * Get all available roles
    */
-  static getAllRoles(): Array<{ value: RoleType; label: string; permissions: PermissionType[] }> {
-    return Object.values(ROLES).map(role => ({
-      value: role,
-      label: this.getRoleDisplayName(role),
-      permissions: this.getPermissionsForRole(role)
-    }));
-  }
+  static async getAllRoles(): Promise<Role[]> {
+    try {
+      const { data, error } = await supabase
+        .from('roles')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
 
-  /**
-   * Get display name for a role
-   */
-  static getRoleDisplayName(role: RoleType): string {
-    switch (role) {
-      case ROLES.REGULAR_USER:
-        return 'Regular User';
-      case ROLES.CHANGE_LEAD:
-        return 'Change Lead';
-      case ROLES.MANAGER_CHANGE:
-        return 'Manager Change';
-      case ROLES.BUSINESS_CONTROLLER:
-        return 'Business Controller';
-      case ROLES.ADMIN:
-        return 'Admin';
-      default:
-        return role;
+      if (error) {
+        console.error('Error fetching roles:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getAllRoles:', error)
+      return []
     }
   }
 
   /**
-   * Get display name for a permission
+   * Get all available permissions
    */
-  static getPermissionDisplayName(permission: PermissionType): string {
-    switch (permission) {
-      case PERMISSIONS.TIME_LOGGING:
-        return 'Time Logging';
-      case PERMISSIONS.REPORTS:
-        return 'Reports';
-      case PERMISSIONS.CHANGE_LEAD_REPORTS:
-        return 'Change Lead Reports';
-      case PERMISSIONS.RESOURCE_MANAGEMENT:
-        return 'Resource Management';
-      case PERMISSIONS.PROJECT_MANAGEMENT:
-        return 'Project Management';
-      case PERMISSIONS.USER_MANAGEMENT:
-        return 'User Management';
-      case PERMISSIONS.SYSTEM_ADMIN:
-        return 'System Administration';
-      case PERMISSIONS.DASHBOARD:
-        return 'Dashboard';
-      case PERMISSIONS.CALENDAR:
-        return 'Calendar';
-      case PERMISSIONS.SUBMISSION_OVERVIEW:
-        return 'Submission Overview';
-      case PERMISSIONS.SETTINGS:
-        return 'Settings';
-      case PERMISSIONS.ROLE_MANAGEMENT:
-        return 'Role Management';
-      default:
-        return permission;
+  static async getAllPermissions(): Promise<Permission[]> {
+    try {
+      const { data, error } = await supabase
+        .from('permissions')
+        .select('*')
+        .eq('is_active', true)
+        .order('category', { ascending: true })
+        .order('name', { ascending: true })
+
+      if (error) {
+        console.error('Error fetching permissions:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getAllPermissions:', error)
+      return []
     }
   }
 
   /**
-   * Get menu item display name
+   * Create permission checker for a user
    */
-  static getMenuItemDisplayName(menuItem: MenuItemType): string {
-    switch (menuItem) {
-      case MENU_ITEMS.DASHBOARD:
-        return 'Dashboard';
-      case MENU_ITEMS.PROJECTS:
-        return 'Projects';
-      case MENU_ITEMS.RESOURCES:
-        return 'Resources';
-      case MENU_ITEMS.CALENDAR:
-        return 'Calendar';
-      case MENU_ITEMS.TIME_LOGGING:
-        return 'Time Logging';
-      case MENU_ITEMS.SUBMISSION_OVERVIEW:
-        return 'Submission Overview';
-      case MENU_ITEMS.REPORTS:
-        return 'Reports';
-      case MENU_ITEMS.CHANGE_LEAD_REPORTS:
-        return 'Change Lead Reports';
-      case MENU_ITEMS.SETTINGS:
-        return 'Settings';
-      default:
-        return menuItem;
+  static createPermissionChecker(
+    userPermissions: PermissionType[],
+    userRoles: UserRole[]
+  ): PermissionCheck {
+    return {
+      hasPermission: (permission: PermissionType) =>
+        userPermissions.includes(permission),
+
+      hasRole: (role: UserRole) =>
+        userRoles.includes(role),
+
+      hasAnyRole: (roles: UserRole[]) =>
+        roles.some(role => userRoles.includes(role)),
+
+      hasAllPermissions: (permissions: PermissionType[]) =>
+        permissions.every(permission => userPermissions.includes(permission)),
+
+      hasAnyPermission: (permissions: PermissionType[]) =>
+        permissions.some(permission => userPermissions.includes(permission)),
+
+      isAdmin: () => userRoles.includes('admin'),
+      isManager: () => userRoles.includes('manager'),
+      isUser: () => userRoles.includes('user'),
     }
   }
 }
 
-// Export convenience functions
-export const {
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions,
-  hasRole,
-  hasAnyRole,
-  canAccessMenuItem,
-  getAccessibleMenuItems,
-  isAdmin,
-  isSystemAdmin,
-  canManageRoles,
-  getUserRoleNames,
-  getPermissionsForRole,
-  getAllRoles,
-  getRoleDisplayName,
-  getPermissionDisplayName,
-  getMenuItemDisplayName
-} = RBACManager;
+/**
+ * Hook for RBAC operations
+ */
+export function useRBAC() {
+  return {
+    getUserWithRBAC: RBACManager.getUserWithRBAC,
+    getUserPermissions: RBACManager.getUserPermissions,
+    getUserRoles: RBACManager.getUserRoles,
+    hasPermission: RBACManager.hasPermission,
+    hasRole: RBACManager.hasRole,
+    assignRole: RBACManager.assignRole,
+    removeRole: RBACManager.removeRole,
+    getAllRoles: RBACManager.getAllRoles,
+    getAllPermissions: RBACManager.getAllPermissions,
+    createPermissionChecker: RBACManager.createPermissionChecker,
+  }
+}

@@ -18,6 +18,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Resource, Department } from "@shared/schema";
 import { useSavedFilters } from "@/hooks/use-saved-filters";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ResourceManagementGuard } from "@/components/auth/RBACGuard";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import "@/styles/dashboard-blue-theme.css";
@@ -381,8 +382,9 @@ export default function Resources() {
   }
 
   return (
-    <TooltipProvider>
-      <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${
+    <ResourceManagementGuard>
+      <TooltipProvider>
+        <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 ${
         isInitialLoad ? 'resources-entrance gpu-accelerated' : ''
       }`}>
         {/* Header with Blue Gradient */}
@@ -628,6 +630,7 @@ export default function Resources() {
           mode="edit"
         />
       </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ResourceManagementGuard>
   );
 }

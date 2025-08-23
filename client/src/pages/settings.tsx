@@ -18,9 +18,10 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import type { OgsmCharter, Department, NotificationSettings } from "@shared/schema";
 import { Switch } from "@/components/ui/switch";
+import { SettingsGuard } from "@/components/auth/RBACGuard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RoleManagement } from "@/components/rbac/RoleManagement";
-import { RoleGuard } from "@/components/rbac/RoleGuard";
+import { RoleManagementGuard } from "@/components/auth/RBACGuard";
 import { PERMISSIONS } from "@shared/schema";
 import "@/styles/dashboard-blue-theme.css";
 
@@ -798,7 +799,8 @@ function NotificationSettingsSection() {
 
 export default function Settings() {
   return (
-    <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <SettingsGuard>
+      <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Enhanced Header with Gradient Background */}
       <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden">
         {/* Background Pattern */}
@@ -835,12 +837,12 @@ export default function Settings() {
               <span className="hidden sm:inline">Notifications</span>
               <span className="sm:hidden">Notify</span>
             </TabsTrigger>
-            <RoleGuard permission={PERMISSIONS.ROLE_MANAGEMENT}>
+            <RoleManagementGuard>
               <TabsTrigger value="roles" className="text-xs sm:text-sm font-medium px-2 py-2">
                 <span className="hidden sm:inline">Role Management</span>
                 <span className="sm:hidden">Roles</span>
               </TabsTrigger>
-            </RoleGuard>
+            </RoleManagementGuard>
             <TabsTrigger value="integrations" className="text-xs sm:text-sm font-medium px-2 py-2">
               <span className="hidden sm:inline">Integrations</span>
               <span className="sm:hidden">Integr</span>
@@ -937,5 +939,6 @@ export default function Settings() {
       </Tabs>
       </div>
     </main>
+    </SettingsGuard>
   );
 }

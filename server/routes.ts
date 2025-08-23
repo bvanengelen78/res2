@@ -1,9 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { authService } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { authenticate, authorize, authorizeRole, authorizeResourceOwner, adminOnly, managerOrAdmin } from "./middleware/auth";
+import {
+  authenticate,
+  requirePermission,
+  requireRole,
+  requireAnyRole,
+  adminOnly,
+  managerOrAdmin,
+  authorizeResourceOwner,
+  authorize,
+  authorizeRole
+} from "./middleware/supabase-auth";
 import {
   insertUserSchema,
   insertResourceSchema,
@@ -32,119 +41,10 @@ function getISOWeekNumber(date: Date): number {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Authentication routes
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { email, password, resourceId } = req.body;
-      
-      if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
-      }
-
-      const result = await authService.register({ email, password, resourceId });
-      
-      res.status(201).json({
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          resourceId: result.user.resourceId,
-          roles: result.user.roles,
-          permissions: result.user.permissions,
-        },
-        tokens: result.tokens,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
-      res.status(400).json({ message });
-    }
-  });
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { email, password, rememberMe } = req.body;
-      
-      if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
-      }
-
-      const result = await authService.login({ email, password, rememberMe });
-      
-      res.json({
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          resourceId: result.user.resourceId,
-          roles: result.user.roles,
-          permissions: result.user.permissions,
-          resource: result.user.resource,
-        },
-        tokens: result.tokens,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
-      res.status(401).json({ message });
-    }
-  });
-
-  app.post("/api/auth/refresh", async (req, res) => {
-    try {
-      const { refreshToken } = req.body;
-      
-      if (!refreshToken) {
-        return res.status(400).json({ message: "Refresh token is required" });
-      }
-
-      const tokens = await authService.refreshToken(refreshToken);
-      res.json({ tokens });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Token refresh failed";
-      res.status(401).json({ message });
-    }
-  });
-
-  app.post("/api/auth/logout", authenticate, async (req, res) => {
-    try {
-      // Extract session ID from token (you'll need to decode it)
-      const authHeader = req.headers.authorization!;
-      const token = authHeader.substring(7);
-      // In a real implementation, you'd extract sessionId from the token
-      
-      res.json({ message: "Logged out successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Logout failed" });
-    }
-  });
-
-  // Self-service password reset removed - admin-only password management
-  app.post("/api/auth/forgot-password", async (req, res) => {
-    res.status(404).json({
-      message: "Self-service password reset is not available. Contact your administrator to reset your password."
-    });
-  });
-
-  app.post("/api/auth/reset-password", async (req, res) => {
-    res.status(404).json({
-      message: "Self-service password reset is not available. Contact your administrator to reset your password."
-    });
-  });
-
-  app.get("/api/auth/me", authenticate, async (req, res) => {
-    res.json({
-      user: {
-        id: req.user!.id,
-        email: req.user!.email,
-        resourceId: req.user!.resourceId,
-        roles: req.user!.roles,
-        permissions: req.user!.permissions,
-        resource: req.user!.resource,
-      }
-    });
-  });
 
   // ============================================================================
-  // VERCEL COMPATIBILITY ROUTES (must be before existing routes)
+  // HEALTH CHECK ROUTES
   // ============================================================================
-  // These routes match the Vercel serverless function structure for development
 
   // Ping endpoint for health checks
   app.get("/api/ping", (req, res) => {
@@ -155,220 +55,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Login endpoint (mock authentication for development)
-  app.post("/api/login", async (req, res) => {
+
+
+  // Resources endpoint - use direct implementation instead of delegation
+  app.get("/api/resources", authenticate, requirePermission('resource_management'), async (req, res) => {
     try {
-      const { email, password, rememberMe } = req.body;
-
-      if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
-      }
-
-      // For development - accept any email/password combination (same as Vercel functions)
-      if (email && password) {
-        const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-        const accessToken = jwt.sign(
-          { user: { id: 1, email: email, resourceId: 1 } },
-          JWT_SECRET,
-          { expiresIn: rememberMe ? '30d' : '1d' }
-        );
-
-        const refreshToken = jwt.sign(
-          { userId: 1 },
-          JWT_SECRET,
-          { expiresIn: '30d' }
-        );
-
-        return res.json({
-          user: {
-            id: 1,
-            email: email,
-            resourceId: 1,
-            roles: [{ role: 'admin' }], // Default to admin role for testing
-            permissions: [
-              'time_logging',
-              'reports',
-              'change_lead_reports',
-              'resource_management',
-              'project_management',
-              'user_management',
-              'system_admin',
-              'dashboard',
-              'calendar',
-              'submission_overview',
-              'settings',
-              'role_management'
-            ],
-            resource: {
-              id: 1,
-              name: 'Test User',
-              role: 'Developer'
-            }
-          },
-          tokens: {
-            accessToken,
-            refreshToken,
-          },
-        });
-      } else {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
+      const resources = await storage.getResources();
+      res.json(resources);
     } catch (error) {
-      console.error('[LOGIN] Unexpected error in login endpoint:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      });
-      const message = error instanceof Error ? error.message : "Login failed";
-      res.status(500).json({
-        error: true,
-        message: "Internal server error",
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  // User profile endpoint (mock authentication for development)
-  app.get("/api/me", async (req, res) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      const token = authHeader.substring(7);
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
-
-        res.json({
-          user: {
-            id: decoded.user.id,
-            email: decoded.user.email,
-            resourceId: decoded.user.resourceId,
-            roles: [{ role: 'admin' }], // Default to admin role for testing
-            permissions: [
-              'time_logging',
-              'reports',
-              'change_lead_reports',
-              'resource_management',
-              'project_management',
-              'user_management',
-              'system_admin',
-              'dashboard',
-              'calendar',
-              'submission_overview',
-              'settings',
-              'role_management'
-            ],
-            resource: {
-              id: decoded.user.resourceId,
-              name: 'Test User',
-              role: 'Developer'
-            }
-          }
-        });
-      } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
-    } catch (error) {
-      res.status(500).json({ message: 'Authentication failed' });
-    }
-  });
-
-  // Logout endpoint (mock for development)
-  app.post("/api/logout", async (req, res) => {
-    try {
-      res.json({ message: "Logged out successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Logout failed" });
-    }
-  });
-
-  // Refresh token endpoint (mock for development)
-  app.post("/api/refresh", async (req, res) => {
-    try {
-      const { refreshToken } = req.body;
-
-      if (!refreshToken) {
-        return res.status(400).json({ message: "Refresh token is required" });
-      }
-
-      // For development - generate new tokens
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        const decoded = jwt.verify(refreshToken, JWT_SECRET) as any;
-
-        const newAccessToken = jwt.sign(
-          { user: { id: decoded.userId, email: 'test@example.com', resourceId: decoded.userId } },
-          JWT_SECRET,
-          { expiresIn: '1d' }
-        );
-
-        const newRefreshToken = jwt.sign(
-          { userId: decoded.userId },
-          JWT_SECRET,
-          { expiresIn: '30d' }
-        );
-
-        res.json({
-          tokens: {
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
-          }
-        });
-      } catch (error) {
-        return res.status(401).json({ message: "Invalid refresh token" });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Token refresh failed";
-      res.status(401).json({ message });
-    }
-  });
-
-  // Resources endpoint - delegate to new Vercel API structure
-  app.get("/api/resources", async (req, res) => {
-    try {
-      // Import and use the new Vercel API endpoint
-      const resourcesHandler = await import('../api/resources.js');
-      return await resourcesHandler.default(req, res);
-    } catch (error) {
-      console.error('Error delegating to resources endpoint:', error);
+      console.error('Error fetching resources:', error);
       res.status(500).json({ message: "Failed to fetch resources" });
     }
   });
 
-  // Projects endpoint - delegate to new Vercel API structure
-  app.get("/api/projects", async (req, res) => {
+  // Projects endpoint - use direct implementation instead of delegation
+  app.get("/api/projects", authenticate, requirePermission('project_management'), async (req, res) => {
     try {
-      // Import and use the new Vercel API endpoint
-      const projectsHandler = await import('../api/projects.js');
-      return await projectsHandler.default(req, res);
+      const projects = await storage.getProjects();
+      res.json(projects);
     } catch (error) {
-      console.error('Error delegating to projects endpoint:', error);
+      console.error('Error fetching projects:', error);
       res.status(500).json({ message: "Failed to fetch projects" });
     }
   });
 
-  // OGSM Charters endpoint (mock for development)
-  app.get("/api/ogsm-charters", async (req, res) => {
+  // OGSM Charters endpoint (mock for development) - now using Supabase Auth
+  app.get("/api/ogsm-charters", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
-      // Manual authentication check
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      const token = authHeader.substring(7);
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        jwt.verify(token, JWT_SECRET);
-      } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
 
       // Return mock OGSM charters data
       const mockCharters = [
@@ -429,23 +142,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Departments endpoint (mock for development)
-  app.get("/api/departments", async (req, res) => {
+  // Departments endpoint (mock for development) - now using Supabase Auth
+  app.get("/api/departments", authenticate, async (req, res) => {
     try {
-      // Manual authentication check
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      const token = authHeader.substring(7);
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-      try {
-        jwt.verify(token, JWT_SECRET);
-      } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
 
       // Return mock departments data
       const mockDepartments = [
@@ -498,7 +197,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Consolidated dashboard endpoint (matches Vercel structure)
+  // DISABLED: Consolidated dashboard endpoint (matches Vercel structure)
+  // This mock endpoint has been disabled to prevent conflicts with real Supabase-integrated endpoints
+  // Real endpoints: /api/dashboard/kpis, /api/dashboard/alerts, /api/dashboard/heatmap, /api/dashboard/gamified-metrics
+  /*
   app.get("/api/dashboard", async (req, res) => {
     try {
       // Manual authentication check
@@ -834,6 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Internal server error' });
     }
   });
+  */
 
   // User management routes (Admin only)
   app.get("/api/users", authenticate, adminOnly, async (req, res) => {
@@ -925,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resources routes (now with authentication)
-  app.get("/api/resources", authenticate, authorize([PERMISSIONS.RESOURCE_MANAGEMENT, PERMISSIONS.TIME_LOGGING]), async (req, res) => {
+  app.get("/api/resources", authenticate, requirePermission('resource_management'), async (req, res) => {
     try {
       const resources = await storage.getResources();
       res.json(resources);
@@ -934,7 +637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/resources/:id", authenticate, authorizeResourceOwner(), async (req, res) => {
+  app.get("/api/resources/:id", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const resource = await storage.getResourceWithAllocations(id);
@@ -947,7 +650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/resources", authenticate, authorize(PERMISSIONS.RESOURCE_MANAGEMENT), async (req, res) => {
+  app.post("/api/resources", authenticate, requirePermission("resource_management"), async (req, res) => {
     try {
       const validatedData = insertResourceSchema.parse(req.body);
       const resource = await storage.createResource(validatedData);
@@ -960,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/resources/:id", authenticate, authorizeResourceOwner(), async (req, res) => {
+  app.put("/api/resources/:id", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertResourceSchema.partial().parse(req.body);
@@ -1029,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Profile image upload endpoint
-  app.post("/api/resources/:id/profile-image", authenticate, authorizeResourceOwner(), async (req, res) => {
+  app.post("/api/resources/:id/profile-image", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
       
@@ -1073,7 +776,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Projects routes
-  app.get("/api/projects", authenticate, authorize([PERMISSIONS.PROJECT_MANAGEMENT, PERMISSIONS.TIME_LOGGING]), async (req, res) => {
+  app.get("/api/projects", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const projects = await storage.getProjects();
       res.json(projects);
@@ -1082,7 +785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id", authenticate, authorize([PERMISSIONS.PROJECT_MANAGEMENT, PERMISSIONS.TIME_LOGGING]), async (req, res) => {
+  app.get("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const project = await storage.getProjectWithAllocations(id);
@@ -1095,7 +798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", authenticate, authorize(PERMISSIONS.PROJECT_MANAGEMENT), async (req, res) => {
+  app.post("/api/projects", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const validatedData = insertProjectSchema.parse(req.body);
       const project = await storage.createProject(validatedData);
@@ -1108,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", authenticate, authorize(PERMISSIONS.PROJECT_MANAGEMENT), async (req, res) => {
+  app.put("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertProjectSchema.partial().parse(req.body);
@@ -1122,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", authenticate, authorize(PERMISSIONS.PROJECT_MANAGEMENT), async (req, res) => {
+  app.delete("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteProject(id);
@@ -1133,7 +836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project allocations routes
-  app.get("/api/projects/:id/allocations", authenticate, authorize([PERMISSIONS.PROJECT_MANAGEMENT, PERMISSIONS.TIME_LOGGING]), async (req, res) => {
+  app.get("/api/projects/:id/allocations", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
       const allocations = await storage.getResourceAllocationsByProject(projectId);
@@ -1144,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weekly allocation management for projects
-  app.put("/api/projects/:id/weekly-allocations", authenticate, authorize(PERMISSIONS.PROJECT_MANAGEMENT), async (req, res) => {
+  app.put("/api/projects/:id/weekly-allocations", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       console.log(`[ROUTES] PUT /api/projects/${req.params.id}/weekly-allocations called`);
       console.log(`[ROUTES] Request body:`, req.body);
@@ -1168,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resource allocations routes
-  app.get("/api/resources/:id/allocations", authenticate, authorizeResourceOwner(), async (req, res) => {
+  app.get("/api/resources/:id/allocations", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       console.log(`[ROUTES] GET /api/resources/${id}/allocations - User: ${req.user?.email} (resourceId: ${req.user?.resourceId})`);
@@ -1189,7 +892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weekly allocation management for resources (alternative to project-based endpoint)
-  app.put("/api/resources/:id/weekly-allocations", authenticate, authorizeResourceOwner(), async (req, res) => {
+  app.put("/api/resources/:id/weekly-allocations", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       console.log(`[ROUTES] PUT /api/resources/${req.params.id}/weekly-allocations called`);
       console.log(`[ROUTES] Request body:`, req.body);
@@ -3378,7 +3081,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Reports Dashboard API endpoint
-  app.post("/api/reports/dashboard", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.post("/api/reports/dashboard", authenticate, requirePermission("reports"), async (req, res) => {
     try {
       const { startDate, endDate } = req.body;
 
@@ -3645,7 +3348,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Change Allocation Report routes
-  app.post("/api/reports/change-allocation", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.post("/api/reports/change-allocation", authenticate, requirePermission("reports"), async (req, res) => {
     try {
       const { startDate, endDate, projectIds, resourceIds, groupBy } = req.body;
 
@@ -3710,7 +3413,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Recent Reports management routes
   console.log("[ROUTES] Registering recent reports routes...");
 
-  app.get("/api/reports/recent", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.get("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] GET /api/reports/recent called by user:", req.user?.id);
     try {
       const userId = req.user?.id;
@@ -3723,7 +3426,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/reports/recent", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.post("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] POST /api/reports/recent called by user:", req.user?.id, "with data:", req.body);
     try {
       const { name, type, size, criteria } = req.body;
@@ -3743,7 +3446,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/reports/recent/:id", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.delete("/api/reports/recent/:id", authenticate, requirePermission("reports"), async (req, res) => {
     try {
       const reportId = parseInt(req.params.id);
       const userId = req.user?.id;
@@ -3760,7 +3463,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/reports/recent", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.delete("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
     try {
       const userId = req.user?.id;
 
@@ -3779,7 +3482,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Email Delivery routes
   console.log("[ROUTES] Registering email delivery routes...");
 
-  app.post("/api/reports/email", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.post("/api/reports/email", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] POST /api/reports/email called by user:", req.user?.id);
     try {
       const { recipients, subject, body, reportData, includeAttachment, sendCopy } = req.body;
@@ -3843,7 +3546,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Get email delivery history
-  app.get("/api/reports/email/history", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.get("/api/reports/email/history", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] GET /api/reports/email/history called by user:", req.user?.id);
     try {
       const userId = req.user?.id;
@@ -3863,7 +3566,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Report Scheduling routes
   console.log("[ROUTES] Registering report scheduling routes...");
 
-  app.post("/api/reports/schedule", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.post("/api/reports/schedule", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] POST /api/reports/schedule called by user:", req.user?.id);
     try {
       const {
@@ -3931,7 +3634,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Get user's scheduled reports
-  app.get("/api/reports/schedule", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.get("/api/reports/schedule", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] GET /api/reports/schedule called by user:", req.user?.id);
     try {
       const userId = req.user?.id;
@@ -3949,7 +3652,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Update scheduled report
-  app.put("/api/reports/schedule/:id", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.put("/api/reports/schedule/:id", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] PUT /api/reports/schedule/:id called by user:", req.user?.id);
     try {
       const scheduleId = parseInt(req.params.id);
@@ -3973,7 +3676,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Delete scheduled report
-  app.delete("/api/reports/schedule/:id", authenticate, authorize(PERMISSIONS.REPORTS), async (req, res) => {
+  app.delete("/api/reports/schedule/:id", authenticate, requirePermission("reports"), async (req, res) => {
     console.log("[API] DELETE /api/reports/schedule/:id called by user:", req.user?.id);
     try {
       const scheduleId = parseInt(req.params.id);
@@ -3996,7 +3699,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Public OGSM Charters endpoint for project management
-  app.get("/api/ogsm-charters", authenticate, authorize([PERMISSIONS.PROJECT_MANAGEMENT, PERMISSIONS.SYSTEM_ADMIN]), async (req, res) => {
+  app.get("/api/ogsm-charters", authenticate, requirePermission("project_management"), async (req, res) => {
     try {
       const charters = await storage.getOgsmCharters();
       res.json(charters);
@@ -4007,7 +3710,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Public Departments endpoint for resource management
-  app.get("/api/departments", authenticate, authorize([PERMISSIONS.RESOURCE_MANAGEMENT, PERMISSIONS.SYSTEM_ADMIN]), async (req, res) => {
+  app.get("/api/departments", authenticate, requirePermission("resource_management"), async (req, res) => {
     try {
       const departments = await storage.getDepartments();
       console.log('[ROUTE] Returning departments for resource form:', departments.length, 'departments');
@@ -4019,7 +3722,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Settings/Configuration routes
-  app.get("/api/settings/ogsm-charters", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/settings/ogsm-charters", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const charters = await storage.getOgsmCharters();
       res.json(charters);
@@ -4028,7 +3731,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/settings/ogsm-charters", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.post("/api/settings/ogsm-charters", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const validatedData = insertOgsmCharterSchema.parse(req.body);
       const charter = await storage.createOgsmCharter(validatedData);
@@ -4041,7 +3744,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/ogsm-charters/:id", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.put("/api/settings/ogsm-charters/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertOgsmCharterSchema.partial().parse(req.body);
@@ -4055,7 +3758,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/settings/ogsm-charters/:id", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.delete("/api/settings/ogsm-charters/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteOgsmCharter(id);
@@ -4065,7 +3768,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/settings/departments", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/settings/departments", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const departments = await storage.getDepartments();
       res.json(departments);
@@ -4074,7 +3777,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/settings/departments", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.post("/api/settings/departments", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const validatedData = insertDepartmentSchema.parse(req.body);
       const department = await storage.createDepartment(validatedData);
@@ -4087,7 +3790,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/departments/:id", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.put("/api/settings/departments/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertDepartmentSchema.partial().parse(req.body);
@@ -4101,7 +3804,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/settings/departments/:id", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.delete("/api/settings/departments/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteDepartment(id);
@@ -4112,7 +3815,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Notification Settings routes
-  app.get("/api/settings/notifications", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/settings/notifications", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const settings = await storage.getNotificationSettings();
       res.json(settings);
@@ -4121,7 +3824,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/settings/notifications/:type", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/settings/notifications/:type", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const type = req.params.type;
       const setting = await storage.getNotificationSettingByType(type);
@@ -4136,7 +3839,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/notifications/:id", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.put("/api/settings/notifications/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = z.object({
@@ -4191,7 +3894,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/time-logging/unsubmitted/:weekStartDate", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/time-logging/unsubmitted/:weekStartDate", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const weekStartDate = req.params.weekStartDate;
       const unsubmittedUsers = await storage.getUnsubmittedUsersForWeek(weekStartDate);
@@ -4201,7 +3904,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/time-logging/send-reminders", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.post("/api/time-logging/send-reminders", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { weekStartDate, userIds, resourceIds } = req.body;
       
@@ -4260,7 +3963,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Background job endpoint for automated reminders
-  app.post("/api/time-logging/check-reminders", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.post("/api/time-logging/check-reminders", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       // Get current week start date (Monday)
       const now = new Date();
@@ -4312,7 +4015,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Submission overview endpoint
-  app.get("/api/time-logging/submission-overview", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.get("/api/time-logging/submission-overview", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { week, department } = req.query;
       
@@ -4329,7 +4032,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Export submissions endpoint
-  app.post("/api/time-logging/export-submissions", authenticate, authorize(PERMISSIONS.SYSTEM_ADMIN), async (req, res) => {
+  app.post("/api/time-logging/export-submissions", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { weekStartDate, department } = req.body;
       
@@ -4388,7 +4091,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Role-Based Access Control Management routes
-  app.get("/api/rbac/roles", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.get("/api/rbac/roles", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const roles = await storage.getAllRoles();
       res.json(roles);
@@ -4398,7 +4101,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/permissions", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.get("/api/rbac/permissions", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const permissions = Object.values(PERMISSIONS);
       res.json(permissions);
@@ -4545,7 +4248,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/users", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.get("/api/rbac/users", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       console.log("[RBAC] Fetching users with roles...");
       const now = Date.now();
@@ -4594,7 +4297,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/rbac/assign-role", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.post("/api/rbac/assign-role", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const { resourceId, role } = req.body;
 
@@ -4638,7 +4341,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/rbac/remove-role", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.post("/api/rbac/remove-role", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const { userId, role, resourceId } = req.body;
 
@@ -4660,7 +4363,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Admin endpoint to update user password
-  app.post("/api/rbac/update-password", authenticate, authorize(PERMISSIONS.USER_MANAGEMENT), async (req, res) => {
+  app.post("/api/rbac/update-password", authenticate, requirePermission("user_management"), async (req, res) => {
     try {
       const { userId, newPassword } = req.body;
 
@@ -4700,7 +4403,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/user-roles/:userId", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.get("/api/rbac/user-roles/:userId", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const userRoles = await storage.getUserRoles(userId);
@@ -4711,7 +4414,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/role-permissions/:role", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.get("/api/rbac/role-permissions/:role", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const role = req.params.role;
       const permissions = authService.getPermissionsForRole(role);
@@ -4722,64 +4425,19 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/rbac/create-user", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  // RBAC User Creation - delegate to new API handler with proper validation
+  app.post("/api/rbac/create-user", async (req, res) => {
     try {
-      const { name, email, role } = req.body;
-
-      if (!name || !email) {
-        return res.status(400).json({ message: "Name and email are required" });
-      }
-
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ message: "User with this email already exists" });
-      }
-
-      // Create resource first
-      const resource = await storage.createResource({
-        name,
-        email,
-        role: 'Employee',
-        department: 'General',
-        capacity: 40,
-        skills: [],
-        hourlyRate: 0,
-        isActive: true,
-      });
-
-      // Create user account with default password
-      const defaultPassword = Math.random().toString(36).slice(-8);
-      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-      
-      const user = await storage.createUser({
-        email,
-        password: hashedPassword,
-        resourceId: resource.id,
-        isActive: true,
-      });
-
-      // Assign initial role if provided
-      if (role) {
-        await authService.assignRole(user.id, role, undefined, req.user!.id);
-      }
-
-      res.status(201).json({
-        user: {
-          id: user.id,
-          email: user.email,
-          resourceId: user.resourceId,
-        },
-        resource,
-        defaultPassword, // In production, this would be sent via email
-      });
+      // Import and use the new Vercel API endpoint with proper validation
+      const createUserHandler = await import('../api/rbac/create-user.js');
+      return await createUserHandler.default(req, res);
     } catch (error) {
-      console.error("Failed to create user:", error);
+      console.error('Error delegating to create-user endpoint:', error);
       res.status(500).json({ message: "Failed to create user" });
     }
   });
 
-  app.post("/api/rbac/update-role-permissions", authenticate, authorize(PERMISSIONS.ROLE_MANAGEMENT), async (req, res) => {
+  app.post("/api/rbac/update-role-permissions", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
       const { role, permissions } = req.body;
 
@@ -4838,14 +4496,36 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  // Gamified KPI Metrics endpoint - delegate to new Vercel API structure
-  app.get("/api/dashboard/gamified-metrics", async (req, res) => {
+  // Gamified KPI Metrics endpoint - use direct implementation
+  app.get("/api/dashboard/gamified-metrics", authenticate, async (req, res) => {
     try {
-      // Import and use the new Vercel API endpoint
-      const gamifiedMetricsHandler = await import('../api/dashboard/gamified-metrics.js');
-      return await gamifiedMetricsHandler.default(req, res);
+      const { startDate, endDate } = req.query;
+
+      // Fetch data
+      const [resources, projects, allocations, timeEntries] = await Promise.all([
+        storage.getResources(),
+        storage.getProjects(),
+        storage.getResourceAllocations(),
+        storage.getTimeEntries()
+      ]);
+
+      // Calculate simple alerts
+      const alerts = calculateSimpleAlerts(resources, allocations, null);
+
+      // Calculate gamified metrics
+      const gamifiedMetrics = calculateGamifiedMetrics(
+        resources,
+        projects,
+        allocations,
+        timeEntries,
+        alerts,
+        startDate as string || format(new Date(), 'yyyy-MM-dd'),
+        endDate as string || format(new Date(), 'yyyy-MM-dd')
+      );
+
+      res.json(gamifiedMetrics);
     } catch (error) {
-      console.error('Error delegating to gamified metrics endpoint:', error);
+      console.error('Error fetching gamified metrics:', error);
       res.status(500).json({ message: "Failed to fetch gamified metrics" });
     }
   });

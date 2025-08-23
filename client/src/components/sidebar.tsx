@@ -4,6 +4,7 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
+  Users,
   type LucideIcon
 } from "lucide-react";
 import { NAVIGATION_ICONS } from "@/components/navigation/navigation-icons";
@@ -11,8 +12,8 @@ import { CalendarDiamondIcon } from "@/components/icons/calendar-diamond-icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useRBAC } from "@/hooks/useRBAC";
-import { RoleGuard } from "@/components/rbac/RoleGuard";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { RBACGuard } from "@/components/auth/RBACGuard";
 import { MENU_ITEMS, PERMISSIONS } from "@shared/schema";
 import { useState } from "react";
 import { Logo } from "@/components/branding/Logo";
@@ -25,20 +26,21 @@ type NavigationItem = {
   permission?: string;
 };
 
-// Main navigation items
+// Main navigation items with proper RBAC permissions
 const mainNavigation: NavigationItem[] = [
-  { name: "Dashboard", href: "/", icon: NAVIGATION_ICONS.DASHBOARD, menuItem: MENU_ITEMS.DASHBOARD },
-  { name: "Projects", href: "/projects", icon: NAVIGATION_ICONS.PROJECTS, menuItem: MENU_ITEMS.PROJECTS },
-  { name: "Resources", href: "/resources", icon: NAVIGATION_ICONS.RESOURCES, menuItem: MENU_ITEMS.RESOURCES },
-  { name: "Time Logging", href: "/mobile-time-logging", icon: NAVIGATION_ICONS.TIME_LOGGING, menuItem: MENU_ITEMS.TIME_LOGGING },
-  { name: "Submission Overview", href: "/submission-overview", icon: NAVIGATION_ICONS.SUBMISSION_OVERVIEW, menuItem: MENU_ITEMS.SUBMISSION_OVERVIEW },
-  { name: "Reports", href: "/reports", icon: NAVIGATION_ICONS.REPORTS, menuItem: MENU_ITEMS.REPORTS },
+  { name: "Dashboard", href: "/", icon: NAVIGATION_ICONS.DASHBOARD, permission: PERMISSIONS.DASHBOARD },
+  { name: "Projects", href: "/projects", icon: NAVIGATION_ICONS.PROJECTS, permission: PERMISSIONS.PROJECT_MANAGEMENT },
+  { name: "Resources", href: "/resources", icon: NAVIGATION_ICONS.RESOURCES, permission: PERMISSIONS.RESOURCE_MANAGEMENT },
+  { name: "Time Logging", href: "/mobile-time-logging", icon: NAVIGATION_ICONS.TIME_LOGGING, permission: PERMISSIONS.TIME_LOGGING },
+  { name: "Submission Overview", href: "/submission-overview", icon: NAVIGATION_ICONS.SUBMISSION_OVERVIEW, permission: PERMISSIONS.SUBMISSION_OVERVIEW },
+  { name: "Reports", href: "/reports", icon: NAVIGATION_ICONS.REPORTS, permission: PERMISSIONS.REPORTS },
   { name: "Change Lead Reports", href: "/change-lead-reports", icon: NAVIGATION_ICONS.CHANGE_LEAD_REPORTS, permission: PERMISSIONS.CHANGE_LEAD_REPORTS },
 ];
 
 // Bottom navigation items (admin/settings)
 const bottomNavigation: NavigationItem[] = [
-  { name: "Settings", href: "/settings", icon: NAVIGATION_ICONS.SETTINGS, menuItem: MENU_ITEMS.SETTINGS },
+  { name: "User Management", href: "/user-management", icon: Users, permission: PERMISSIONS.USER_MANAGEMENT },
+  { name: "Settings", href: "/settings", icon: NAVIGATION_ICONS.SETTINGS, permission: PERMISSIONS.SETTINGS },
 ];
 
 export function Sidebar() {
@@ -50,15 +52,13 @@ export function Sidebar() {
       const Icon = item.icon;
       const isActive = location === item.href;
 
-      // Determine access control method
-      const accessProps = item.menuItem
-        ? { menuItem: item.menuItem }
-        : item.permission
-          ? { permission: item.permission }
-          : {};
+      // Determine access control method - convert to new RBAC format
+      const shouldRender = item.permission
+        ? true // We'll use RBACGuard with permission prop
+        : true; // For items without specific permissions, show to all authenticated users
 
       return (
-        <RoleGuard key={item.name} {...accessProps}>
+        <RBACGuard key={item.name} permissions={item.permission ? [item.permission] : []}>
           {isCollapsed ? (
             <TooltipProvider>
               <Tooltip>
@@ -111,7 +111,7 @@ export function Sidebar() {
               </div>
             </Link>
           )}
-        </RoleGuard>
+        </RBACGuard>
       );
     });
   };

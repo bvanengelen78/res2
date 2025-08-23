@@ -9,13 +9,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 export function Header() {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useSupabaseAuth();
 
   const handleLogout = async () => {
-    await logout();
+    await signOut();
   };
 
   const userInitials = user?.email

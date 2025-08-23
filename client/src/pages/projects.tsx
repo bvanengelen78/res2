@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useSavedProjectFilters } from "@/hooks/use-saved-project-filters";
+import { ProjectManagementGuard } from "@/components/auth/RBACGuard";
 import "@/styles/dashboard-blue-theme.css";
 import "@/styles/dashboard-transitions.css";
 import { animationMonitor, detectDeviceCapabilities, getOptimizedAnimationConfig } from "@/utils/animation-performance";
@@ -423,8 +424,9 @@ export default function Projects() {
   }
 
   return (
-    <TooltipProvider>
-      <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <ProjectManagementGuard>
+      <TooltipProvider>
+        <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
         {/* Enhanced Header with Gradient Background */}
         <div className={`relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden ${
           isInitialLoad ? 'projects-entrance projects-entrance-header gpu-accelerated' : ''
@@ -1183,6 +1185,7 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
       </main>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ProjectManagementGuard>
   );
 }

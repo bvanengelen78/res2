@@ -194,12 +194,18 @@ export function RoleSkillHeatmap({
 
     // Create a map of heatmap data for quick lookup
     const heatmapResourceMap = new Map();
-    if (heatmapData && Array.isArray(heatmapData)) {
-      heatmapData.forEach(heatmapResource => {
+    if (heatmapData && heatmapData.resources && Array.isArray(heatmapData.resources)) {
+      heatmapData.resources.forEach(heatmapResource => {
         heatmapResourceMap.set(heatmapResource.id, heatmapResource);
       });
-    } else if (heatmapData && !Array.isArray(heatmapData)) {
-      console.warn('[RoleSkillHeatmap] heatmapData is not an array:', typeof heatmapData, heatmapData);
+      console.log('[RoleSkillHeatmap] Successfully processed heatmap data:', {
+        resourcesCount: heatmapData.resources.length,
+        sampleResource: heatmapData.resources[0]
+      });
+    } else if (heatmapData && !heatmapData.resources) {
+      console.warn('[RoleSkillHeatmap] heatmapData missing resources array:', typeof heatmapData, heatmapData);
+    } else if (heatmapData && heatmapData.resources && !Array.isArray(heatmapData.resources)) {
+      console.warn('[RoleSkillHeatmap] heatmapData.resources is not an array:', typeof heatmapData.resources, heatmapData.resources);
     }
 
     // Process all resources using heatmap data (which includes ALL resources with utilization)
@@ -208,11 +214,12 @@ export function RoleSkillHeatmap({
 
       if (heatmapResource) {
         // Use heatmap data which includes ALL resources with correct utilization
+        // Note: API returns 'allocated' but component expects 'allocatedHours'
         return {
           id: heatmapResource.id,
           name: heatmapResource.name,
           utilization: heatmapResource.utilization, // Includes "normal" utilization like Boyan's 78%
-          allocatedHours: heatmapResource.allocatedHours,
+          allocatedHours: heatmapResource.allocated || 0, // Map 'allocated' from API to 'allocatedHours'
           capacity: heatmapResource.capacity,
           department: heatmapResource.department,
           role: resource.role // Use role from resources table for consistency

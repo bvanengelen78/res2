@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cacheInvalidation } from "@/lib/queryClient";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { useState, useMemo } from "react";
 import { Calendar, Filter, Sparkles } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns";
@@ -28,7 +28,7 @@ export default function DashboardArchived() {
   const [projectFormOpen, setProjectFormOpen] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("thisMonth");
-  const { user } = useAuth();
+  const { user } = useSupabaseAuth();
 
   // Get user's first name for personalization
   const getUserFirstName = () => {

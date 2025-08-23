@@ -28,7 +28,7 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { RoleGuard } from '@/components/rbac/RoleGuard';
+import { ReportsGuard } from '@/components/auth/RBACGuard';
 import { ChangeAllocationReportModal } from '@/components/change-allocation-report-modal';
 import { EmailDeliveryModal } from '@/components/email-delivery-modal';
 import { ReportSchedulingModal } from '@/components/report-scheduling-modal';
@@ -269,8 +269,7 @@ export default function Reports() {
 
 
   return (
-    <RoleGuard
-      permission="reports"
+    <ReportsGuard
       fallback={
         <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
           <div className="max-w-7xl mx-auto">
@@ -670,6 +669,6 @@ export default function Reports() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </RoleGuard>
+    </ReportsGuard>
   );
 }
