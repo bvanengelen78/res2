@@ -23,9 +23,7 @@ if (supabaseUrl && supabaseServiceKey) {
 // Input validation schema
 const assignRoleSchema = z.object({
   userId: z.string().uuid('Invalid user ID format'),
-  roleName: z.enum(['user', 'manager', 'admin'], {
-    errorMap: () => ({ message: 'Role must be one of: user, manager, admin' })
-  }),
+  roleName: z.string().min(1, 'Role name is required'),
 });
 
 // Note: Old assignRoleToUser function removed - using new RBAC schema
@@ -177,6 +175,7 @@ module.exports = withMiddleware(assignRoleHandler, {
   requireAuth: true,
   allowedMethods: ['POST'],
   validateSchema: assignRoleSchema,
+  requiredPermissions: ['role_management'],
   rateLimit: {
     windowMs: 60 * 1000, // 1 minute
     max: 10 // 10 role assignments per minute

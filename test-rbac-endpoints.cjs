@@ -1,30 +1,46 @@
 // Test RBAC Endpoints
 // Comprehensive testing of Role Management API endpoints
 
-import fetch from 'node-fetch';
+const fetch = require('node-fetch');
 
-const BASE_URL = 'https://resourcio.vercel.app';
+const BASE_URL = 'http://localhost:5000';
 
 // First get a valid auth token
 async function getAuthToken() {
-  const response = await fetch(`${BASE_URL}/api/login-enterprise-simple`, {
+  console.log('🔐 Attempting to login with admin credentials...');
+
+  // Try to login with Supabase auth
+  const response = await fetch(`${BASE_URL}/api/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      email: 'admin@resourceflow.com',
-      password: 'admin123',
-      rememberMe: false
+      email: 'admin@swisssense.nl',
+      password: 'admin123'
     })
   });
 
+  console.log(`Login response status: ${response.status}`);
+
   if (response.status !== 200) {
-    throw new Error(`Login failed with status ${response.status}`);
+    const errorText = await response.text();
+    console.log(`Login error: ${errorText}`);
+    throw new Error(`Login failed with status ${response.status}: ${errorText}`);
   }
 
   const data = await response.json();
-  return data.tokens.accessToken;
+  console.log('Login response structure:', Object.keys(data));
+
+  // Try different token field names
+  const token = data.token || data.access_token || data.accessToken || data.tokens?.accessToken;
+  if (!token) {
+    console.log('Full login response:', JSON.stringify(data, null, 2));
+    throw new Error('No token found in login response');
+  }
+
+  console.log('✅ Authentication successful, token received');
+  return token;
 }
 
 async function testRBACEndpoints() {
@@ -42,9 +58,9 @@ async function testRBACEndpoints() {
       'Content-Type': 'application/json'
     };
 
-    // Test /api/rbac/users endpoint
-    console.log('\n📋 Step 2: Testing /api/rbac/users');
-    const usersResponse = await fetch(`${BASE_URL}/api/rbac/users`, { headers });
+    // Test /api/rbac/user-profiles endpoint
+    console.log('\n📋 Step 2: Testing /api/rbac/user-profiles');
+    const usersResponse = await fetch(`${BASE_URL}/api/rbac/user-profiles`, { headers });
     
     console.log(`   Status: ${usersResponse.status} ${usersResponse.statusText}`);
     
@@ -73,9 +89,9 @@ async function testRBACEndpoints() {
       console.log(`   Error: ${errorText}`);
     }
 
-    // Test /api/rbac/roles endpoint
-    console.log('\n📋 Step 3: Testing /api/rbac/roles');
-    const rolesResponse = await fetch(`${BASE_URL}/api/rbac/roles`, { headers });
+    // Test /api/rbac/roles-hierarchy endpoint
+    console.log('\n📋 Step 3: Testing /api/rbac/roles-hierarchy');
+    const rolesResponse = await fetch(`${BASE_URL}/api/rbac/roles-hierarchy`, { headers });
     
     console.log(`   Status: ${rolesResponse.status} ${rolesResponse.statusText}`);
     

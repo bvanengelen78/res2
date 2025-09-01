@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import { getAuthToken } from "./auth-api";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -23,12 +24,8 @@ export async function apiRequest(
     console.log(`[API_REQUEST] Request body:`, body);
   }
 
-  // Get the current session token from Supabase
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-  if (sessionError) {
-    console.warn(`[API_REQUEST] Session error:`, sessionError);
-  }
+  // Get fresh authentication token
+  const token = await getAuthToken();
 
   // Prepare headers with authentication
   const requestHeaders: Record<string, string> = {
@@ -36,12 +33,12 @@ export async function apiRequest(
     ...headers,
   };
 
-  // Add Authorization header if we have a session
-  if (session?.access_token) {
-    requestHeaders['Authorization'] = `Bearer ${session.access_token}`;
-    console.log(`[API_REQUEST] Added Authorization header with token`);
+  // Add Authorization header if we have a token
+  if (token) {
+    requestHeaders['Authorization'] = `Bearer ${token}`;
+    console.log(`[API_REQUEST] Added Authorization header with fresh token`);
   } else {
-    console.warn(`[API_REQUEST] No session token available for authentication`);
+    console.warn(`[API_REQUEST] No authentication token available`);
   }
 
   try {
@@ -117,19 +114,15 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Get the current session token from Supabase
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      console.warn(`[QUERY_FN] Session error:`, sessionError);
-    }
+    // Get fresh authentication token
+    const token = await getAuthToken();
 
     // Prepare headers with authentication
     const headers: Record<string, string> = {};
 
-    // Add Authorization header if we have a session
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    // Add Authorization header if we have a token
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const res = await fetch(queryKey.join("/") as string, {

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { supabaseAdmin } from "./supabase";
+import { createClient } from '@supabase/supabase-js';
 import {
   authenticate,
   requirePermission,
@@ -55,7 +56,518 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // ============================================================================
+  // AUTHENTICATION ROUTES
+  // ============================================================================
 
+  // Login endpoint
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({
+          error: 'Email and password are required'
+        });
+      }
+
+      // Authenticate with Supabase
+      const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError || !authData.user) {
+        return res.status(401).json({
+          error: 'Invalid credentials'
+        });
+      }
+
+      // Get user profile and roles
+      const { data: userProfile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      // Get user roles
+      const { data: userRoles } = await supabaseAdmin
+        .from('user_roles')
+        .select(`
+          role:roles(name, display_name)
+        `)
+        .eq('user_id', authData.user.id)
+        .eq('is_active', true);
+
+      // Get user permissions
+      const { data: permissions } = await supabaseAdmin
+        .rpc('get_user_permissions', { user_id: authData.user.id });
+
+      const user = {
+        id: authData.user.id,
+        email: authData.user.email,
+        firstName: userProfile?.first_name,
+        lastName: userProfile?.last_name,
+        roles: userRoles?.map((ur: any) => ur.role?.name).filter(Boolean) || [],
+        permissions: permissions?.map((p: any) => p.permission_name) || [],
+        resourceId: userProfile?.resource_id
+      };
+
+      return res.status(200).json({
+        success: true,
+        user,
+        token: authData.session.access_token,
+        refreshToken: authData.session.refresh_token,
+        message: 'Login successful'
+      });
+
+    } catch (error) {
+      console.error('Login error:', error);
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: error.message
+      });
+    }
+  });
+
+
+
+  // ============================================================================
+  // RBAC ROUTES
+  // ============================================================================
+
+  // Get user profiles with roles (admin only)
+  app.get("/api/rbac/user-profiles", authenticate, requirePermission('user_management'), async (req, res) => {
+    try {
+      // Create a fresh service role client to avoid middleware interference
+      const freshSupabaseAdmin = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      // Get all user profiles using fresh client
+      const { data: userProfiles, error: profilesError } = await freshSupabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (profilesError) {
+        throw profilesError;
+      }
+
+      const usersWithRoles = [];
+
+      // For each user profile, get their roles
+      for (const profile of userProfiles || []) {
+        console.log(`🔍 [DEBUG] Processing user: ${profile.email}`);
+
+        try {
+          const { data: userRoles, error: rolesError } = await freshSupabaseAdmin
+            .from('user_roles')
+            .select(`
+              id,
+              assigned_at,
+              assigned_by,
+              is_active,
+              roles (
+                id,
+                name,
+                description,
+                display_name,
+                is_active
+              )
+            `)
+            .eq('user_id', profile.id)
+            .eq('is_active', true);
+
+          let roles = [];
+          let roleAssignments = [];
+
+          if (rolesError) {
+            console.log(`⚠️  [DEBUG] Error fetching roles for ${profile.email}:`, rolesError);
+          } else {
+            console.log(`✅ [DEBUG] Found ${userRoles?.length || 0} role assignments for ${profile.email}`);
+          }
+
+          if (!rolesError && userRoles) {
+            // Extract roles
+            roles = userRoles.map(ur => ur.roles).filter(Boolean);
+
+            // Extract role assignments
+            roleAssignments = userRoles.map(ur => ({
+              id: ur.id,
+              role: ur.roles,
+              assigned_at: ur.assigned_at,
+              assigned_by: ur.assigned_by
+            })).filter(ra => ra.role);
+          }
+
+          const userWithRoles = {
+            ...profile,
+            roles,
+            role_assignments: roleAssignments
+          };
+
+          usersWithRoles.push(userWithRoles);
+          console.log(`✅ [DEBUG] Added user to results: ${profile.email} (${roles.length} roles)`);
+
+        } catch (error) {
+          console.error('❌ [DEBUG] Error processing user roles:', { userId: profile.id, error: error.message });
+          // Add user with empty roles
+          const userWithEmptyRoles = {
+            ...profile,
+            roles: [],
+            role_assignments: []
+          };
+          usersWithRoles.push(userWithEmptyRoles);
+          console.log(`⚠️  [DEBUG] Added user with empty roles: ${profile.email}`);
+        }
+      }
+
+      console.log(`🔍 [DEBUG] Final user count: ${usersWithRoles.length}`);
+      usersWithRoles.forEach((user, index) => {
+        console.log(`   ${index + 1}. ${user.email} - ${user.roles.length} roles`);
+      });
+
+      console.log('🔍 [DEBUG] Final response data count:', usersWithRoles.length);
+      console.log('🔍 [DEBUG] Final response user emails:', usersWithRoles.map(u => u.email));
+
+      const response = {
+        success: true,
+        data: usersWithRoles
+      };
+
+      console.log('🔍 [DEBUG] Response object data count:', response.data.length);
+
+      res.json(response);
+
+    } catch (error) {
+      console.error('User profiles endpoint error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch user profiles',
+        message: error.message
+      });
+    }
+  });
+
+  // Get roles hierarchy (admin only)
+  app.get("/api/rbac/roles-hierarchy", authenticate, requirePermission('user_management'), async (req, res) => {
+    try {
+      const { data: roles, error: rolesError } = await supabaseAdmin
+        .from('roles')
+        .select(`
+          *,
+          role_permissions (
+            permission:permissions (
+              id,
+              name,
+              display_name,
+              description,
+              category
+            )
+          )
+        `)
+        .eq('is_active', true)
+        .order('name');
+
+      if (rolesError) {
+        throw rolesError;
+      }
+
+      const rolesWithPermissions = roles?.map(role => ({
+        ...role,
+        permissions: role.role_permissions?.map(rp => rp.permission).filter(Boolean) || []
+      })) || [];
+
+      res.json({
+        success: true,
+        data: rolesWithPermissions
+      });
+
+    } catch (error) {
+      console.error('Roles hierarchy endpoint error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch roles hierarchy',
+        message: error.message
+      });
+    }
+  });
+
+  // Assign role to user (admin only)
+  app.post("/api/rbac/assign-role", authenticate, requirePermission('user_management'), async (req, res) => {
+    try {
+      const { userId, roleName } = req.body;
+
+      if (!userId || !roleName) {
+        return res.status(400).json({
+          error: 'userId and roleName are required'
+        });
+      }
+
+      // Create a fresh service role client to avoid middleware interference
+      const freshSupabaseAdmin = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      // Check if user exists
+      const { data: existingUser, error: fetchError } = await freshSupabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError || !existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (!existingUser.is_active) {
+        return res.status(400).json({ error: 'Cannot assign role to deactivated user' });
+      }
+
+      // Get role ID from roles table
+      const { data: roleData, error: roleError } = await freshSupabaseAdmin
+        .from('roles')
+        .select('id, name, display_name')
+        .eq('name', roleName)
+        .eq('is_active', true)
+        .single();
+
+      if (roleError || !roleData) {
+        return res.status(400).json({ error: `Role not found: ${roleName}` });
+      }
+
+      // Check if user already has this role
+      const { data: existingAssignment } = await freshSupabaseAdmin
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role_id', roleData.id)
+        .eq('is_active', true)
+        .single();
+
+      if (existingAssignment) {
+        return res.status(400).json({ error: 'User already has this role' });
+      }
+
+      // Assign new role
+      const { data: newRoleAssignment, error: assignError } = await freshSupabaseAdmin
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role_id: roleData.id,
+          assigned_by: req.user!.id,
+          assigned_at: new Date().toISOString(),
+          is_active: true,
+        })
+        .select(`
+          id,
+          assigned_at,
+          assigned_by,
+          is_active,
+          roles (
+            id,
+            name,
+            display_name,
+            description
+          )
+        `)
+        .single();
+
+      if (assignError) {
+        throw new Error(`Role assignment error: ${assignError.message}`);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Role assigned successfully',
+          assignment: newRoleAssignment,
+          role: roleData,
+          user: existingUser
+        }
+      });
+
+    } catch (error) {
+      console.error('Assign role error:', error);
+      res.status(500).json({
+        error: 'Failed to assign role',
+        message: error.message
+      });
+    }
+  });
+
+  // Remove role from user (admin only)
+  app.post("/api/rbac/remove-role", authenticate, requirePermission('user_management'), async (req, res) => {
+    try {
+      const { userId, roleName } = req.body;
+
+      if (!userId || !roleName) {
+        return res.status(400).json({
+          error: 'userId and roleName are required'
+        });
+      }
+
+      // Create a fresh service role client to avoid middleware interference
+      const freshSupabaseAdmin = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      // Validate target user exists
+      const { data: existingUser, error: fetchError } = await freshSupabaseAdmin
+        .from('user_profiles')
+        .select('id, email, is_active')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError || !existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Get role ID by name
+      const { data: roleData, error: roleError } = await freshSupabaseAdmin
+        .from('roles')
+        .select('id, name')
+        .eq('name', roleName)
+        .eq('is_active', true)
+        .single();
+
+      if (roleError || !roleData) {
+        return res.status(404).json({ error: `Role not found: ${roleName}` });
+      }
+
+      // Find active assignment
+      const { data: assignment, error: assignmentError } = await freshSupabaseAdmin
+        .from('user_roles')
+        .select('id, is_active')
+        .eq('user_id', userId)
+        .eq('role_id', roleData.id)
+        .eq('is_active', true)
+        .single();
+
+      if (assignmentError || !assignment) {
+        return res.status(400).json({ error: 'User does not have this role' });
+      }
+
+      // Soft delete the assignment
+      const { error: removeError } = await freshSupabaseAdmin
+        .from('user_roles')
+        .update({
+          is_active: false
+        })
+        .eq('id', assignment.id);
+
+      if (removeError) {
+        return res.status(500).json({ error: `Failed to remove role: ${removeError.message}` });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Role removed successfully',
+          removedAssignmentId: assignment.id,
+          role: roleData,
+          user: existingUser
+        }
+      });
+
+    } catch (error) {
+      console.error('Remove role error:', error);
+      res.status(500).json({
+        error: 'Failed to remove role',
+        message: error.message
+      });
+    }
+  });
+
+  // Change user password (admin only)
+  app.post("/api/rbac/change-password", authenticate, requirePermission('user_management'), async (req, res) => {
+    try {
+      const { userId, newPassword } = req.body;
+
+      if (!userId || !newPassword) {
+        return res.status(400).json({
+          error: 'userId and newPassword are required'
+        });
+      }
+
+      // Create a fresh service role client to avoid middleware interference
+      const freshSupabaseAdmin = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
+
+      // Check if target user exists
+      const { data: existingUser, error: fetchError } = await freshSupabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError || !existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Prevent admin from changing their own password through this endpoint
+      if (userId === req.user!.id) {
+        return res.status(400).json({ error: 'Use profile settings to change your own password' });
+      }
+
+      // Update password using Supabase Admin API
+      const { data: updateResult, error: updateError } = await freshSupabaseAdmin.auth.admin.updateUserById(
+        userId,
+        {
+          password: newPassword,
+          email_confirm: true // Ensure email remains confirmed
+        }
+      );
+
+      if (updateError) {
+        throw new Error(`Password update failed: ${updateError.message}`);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Password changed successfully',
+          user: existingUser
+        }
+      });
+
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({
+        error: 'Failed to change password',
+        message: error.message
+      });
+    }
+  });
 
   // Resources endpoint - use direct implementation instead of delegation
   app.get("/api/resources", authenticate, requirePermission('resource_management'), async (req, res) => {
@@ -552,7 +1064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       const { role, resourceId } = req.body;
-      
+
       await authService.assignRole(userId, role, resourceId, req.user!.id);
       res.json({ message: "Role assigned successfully" });
     } catch (error) {
@@ -735,19 +1247,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/resources/:id/profile-image", authenticate, authorizeResourceOwner, async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
-      
+
       // In a real implementation, you would handle file upload here
       // For now, we'll simulate a successful upload
       const mockImageUrl = `https://images.unsplash.com/photo-${Math.random() > 0.5 ? '1494790108755-2616b169ee31' : '1507003211169-0a1dd7228f2d'}?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=200`;
-      
+
       // Update the resource with the new profile image URL
       const updatedResource = await storage.updateResource(resourceId, {
         profileImage: mockImageUrl
       });
-      
-      res.json({ 
-        message: "Profile image uploaded successfully", 
-        profileImage: mockImageUrl 
+
+      res.json({
+        message: "Profile image uploaded successfully",
+        profileImage: mockImageUrl
       });
     } catch (error) {
       console.error("Failed to upload profile image:", error);
@@ -759,13 +1271,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/resources/:id/profile-image", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
-      
+
       // Update the resource to remove the profile image (set to null)
       const updatedResource = await storage.updateResource(resourceId, {
         profileImage: null
       });
-      
-      res.json({ 
+
+      res.json({
         message: "Profile image removed successfully",
         resource: updatedResource
       });
@@ -919,7 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.query;
       let allocations;
-      
+
       if (startDate && endDate) {
         allocations = await storage.getResourceAllocationsByDateRange(
           startDate as string,
@@ -928,7 +1440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         allocations = await storage.getResourceAllocations();
       }
-      
+
       res.json(allocations);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch allocations" });
@@ -977,7 +1489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { resourceId, startDate, endDate } = req.query;
       let timeOff;
-      
+
       if (resourceId) {
         timeOff = await storage.getTimeOffByResource(parseInt(resourceId as string));
       } else if (startDate && endDate) {
@@ -988,7 +1500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         timeOff = await storage.getTimeOff();
       }
-      
+
       res.json(timeOff);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch time off" });
@@ -2889,7 +3401,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     try {
       const changeLeadId = parseInt(req.params.changeLeadId);
       const { startDate, endDate, projectId } = req.body;
-      
+
       const effortData = await storage.getChangeLeadEffortSummary(
         changeLeadId,
         startDate,
@@ -2934,7 +3446,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       ].join(","));
 
       const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
-      
+
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="change-lead-report-${new Date().toISOString().split('T')[0]}.csv"`);
       res.send(csvContent);
@@ -3214,7 +3726,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       const totalResources = new Set(reportData.map(r => r.resourceId)).size;
       const totalHours = reportData.reduce((sum, r) => sum + r.totalActualHours, 0);
       const avgHoursPerChange = totalChanges > 0 ? totalHours / totalChanges : 0;
-      
+
       // Top resources by hours
       const resourceHoursMap = new Map();
       reportData.forEach(row => {
@@ -3228,11 +3740,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
         }
         resourceHoursMap.get(key).totalHours += row.totalActualHours;
       });
-      
+
       const topResourcesByHours = Array.from(resourceHoursMap.values())
         .sort((a, b) => b.totalHours - a.totalHours)
         .slice(0, 5);
-      
+
       // Most active changes
       const changeHoursMap = new Map();
       reportData.forEach(row => {
@@ -3247,11 +3759,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
         changeHoursMap.get(key).totalHours += row.totalActualHours;
         changeHoursMap.get(key).resourceCount++;
       });
-      
+
       const mostActiveChanges = Array.from(changeHoursMap.values())
         .sort((a, b) => b.totalHours - a.totalHours)
         .slice(0, 5);
-      
+
       const summary = {
         totalChanges,
         totalResources,
@@ -3272,12 +3784,12 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   app.post("/api/reports/change-effort", async (req, res) => {
     try {
       const { startDate, endDate, projectId } = req.body;
-      
+
       const rawData = await storage.getChangeEffortReport(startDate, endDate, projectId);
-      
+
       // Group the data by change/project
       const changeMap = new Map();
-      
+
       rawData.forEach(row => {
         const key = row.changeId;
         if (!changeMap.has(key)) {
@@ -3303,7 +3815,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
             status: row.projectStatus,
           });
         }
-        
+
         const change = changeMap.get(key);
         change.resources.push({
           resourceId: row.resourceId,
@@ -3330,7 +3842,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
         const totalActualHours = change.resources.reduce((sum, r) => sum + r.actualHours, 0);
         const totalDeviation = totalActualHours - totalEstimatedHours;
         const totalDeviationPercentage = totalEstimatedHours > 0 ? (totalDeviation / totalEstimatedHours) * 100 : 0;
-        
+
         return {
           ...change,
           totalEstimatedHours,
@@ -3828,11 +4340,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     try {
       const type = req.params.type;
       const setting = await storage.getNotificationSettingByType(type);
-      
+
       if (!setting) {
         return res.status(404).json({ message: "Notification setting not found" });
       }
-      
+
       res.json(setting);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch notification setting" });
@@ -3849,7 +4361,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
         emailSubject: z.string().optional(),
         emailTemplate: z.string().optional(),
       }).parse(req.body);
-      
+
       const setting = await storage.updateNotificationSetting(id, validatedData);
       res.json(setting);
     } catch (error) {
@@ -3907,20 +4419,20 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   app.post("/api/time-logging/send-reminders", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { weekStartDate, userIds, resourceIds } = req.body;
-      
+
       if (!weekStartDate || (!Array.isArray(userIds) && !Array.isArray(resourceIds))) {
         return res.status(400).json({ message: "weekStartDate and userIds or resourceIds array are required" });
       }
-      
+
       // Get notification settings
       const notificationSettings = await storage.getNotificationSettingByType('weekly_reminder');
-      
+
       if (!notificationSettings || !notificationSettings.isEnabled) {
         return res.status(400).json({ message: "Weekly reminder notifications are disabled" });
       }
-      
+
       let sentCount = 0;
-      
+
       // Handle resource IDs directly
       if (resourceIds && Array.isArray(resourceIds)) {
         const markReminderPromises = resourceIds.map(async (resourceId: number) => {
@@ -3931,7 +4443,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
             console.error(`Failed to mark reminder sent for resource ${resourceId}:`, error);
           }
         });
-        
+
         await Promise.all(markReminderPromises);
       } else {
         // Handle user IDs (legacy support)
@@ -3947,14 +4459,14 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
             console.error(`Failed to mark reminder sent for user ${userId}:`, error);
           }
         });
-        
+
         await Promise.all(markReminderPromises);
       }
-      
-      res.json({ 
-        message: "Reminders sent successfully", 
+
+      res.json({
+        message: "Reminders sent successfully",
         sentCount,
-        weekStartDate 
+        weekStartDate
       });
     } catch (error) {
       console.error("Failed to send reminders:", error);
@@ -3972,30 +4484,30 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       const mondayDate = new Date(now);
       mondayDate.setDate(now.getDate() - daysToMonday);
       mondayDate.setHours(0, 0, 0, 0);
-      
+
       const weekStartDate = mondayDate.toISOString().split('T')[0];
-      
+
       // Get notification settings
       const notificationSettings = await storage.getNotificationSettingByType('weekly_reminder');
-      
+
       if (!notificationSettings || !notificationSettings.isEnabled) {
         return res.json({ message: "Weekly reminder notifications are disabled", checked: false });
       }
-      
+
       // Check if today is the reminder day
       const currentDayOfWeek = now.getDay();
       const reminderDay = notificationSettings.reminderDay;
-      
+
       if (currentDayOfWeek !== reminderDay) {
-        return res.json({ 
+        return res.json({
           message: `Not reminder day. Current: ${currentDayOfWeek}, Reminder: ${reminderDay}`,
-          checked: false 
+          checked: false
         });
       }
-      
+
       // Get users who haven't submitted for this week
       const unsubmittedUsers = await storage.getUnsubmittedUsersForWeek(weekStartDate);
-      
+
       res.json({
         message: "Reminder check completed",
         checked: true,
@@ -4018,11 +4530,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   app.get("/api/time-logging/submission-overview", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { week, department } = req.query;
-      
+
       if (!week || typeof week !== 'string') {
         return res.status(400).json({ message: "Week parameter is required" });
       }
-      
+
       const submissionOverview = await storage.getSubmissionOverview(week, department as string);
       res.json(submissionOverview);
     } catch (error) {
@@ -4035,13 +4547,13 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   app.post("/api/time-logging/export-submissions", authenticate, requirePermission("system_admin"), async (req, res) => {
     try {
       const { weekStartDate, department } = req.body;
-      
+
       if (!weekStartDate) {
         return res.status(400).json({ message: "weekStartDate is required" });
       }
-      
+
       const submissionData = await storage.getSubmissionOverview(weekStartDate, department);
-      
+
       // Create Excel workbook (simplified - would use a proper Excel library in production)
       const csvData = [
         ['Resource Name', 'Email', 'Department', 'Status', 'Submitted At'],
@@ -4053,9 +4565,9 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
           item.submission?.submittedAt || 'N/A'
         ])
       ];
-      
+
       const csvContent = csvData.map(row => row.join(',')).join('\n');
-      
+
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="submission-overview-${weekStartDate}.csv"`);
       res.send(csvContent);
@@ -4070,18 +4582,18 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     try {
       const resourceId = parseInt(req.params.resourceId);
       const weekStartDate = req.params.weekStartDate;
-      
+
       // Verify user has permission to unsubmit for this resource
       const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       // Check if user is unsubmitting for their own resource or has admin permission
       if (user.resourceId !== resourceId && !user.permissions.includes(PERMISSIONS.SYSTEM_ADMIN)) {
         return res.status(403).json({ message: "Cannot unsubmit timesheet for another user" });
       }
-      
+
       const result = await storage.unsubmitWeeklyTimesheet(resourceId, weekStartDate);
       res.json(result);
     } catch (error) {
@@ -4101,14 +4613,39 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/permissions", authenticate, requirePermission("role_management"), async (req, res) => {
+  // Delegate to Supabase-backed serverless handler
+  app.get("/api/rbac/permissions", async (req, res) => {
     try {
-      const permissions = Object.values(PERMISSIONS);
-      res.json(permissions);
+      const handler = await import('../api/rbac/permissions.js');
+      return await (handler.default || handler)(req, res);
     } catch (error) {
+      console.error('Error delegating to permissions endpoint:', error);
       res.status(500).json({ message: "Failed to fetch permissions" });
     }
   });
+
+  // Delegate roles hierarchy to serverless handler
+  app.get("/api/rbac/roles-hierarchy", async (req, res) => {
+    try {
+      const handler = await import('../api/rbac/roles-hierarchy.js');
+      return await (handler.default || handler)(req, res);
+    } catch (error) {
+      console.error('Error delegating to roles-hierarchy endpoint:', error);
+      res.status(500).json({ message: "Failed to fetch roles" });
+    }
+  });
+
+  // Delegate change-password to serverless handler
+  app.post("/api/rbac/change-password", async (req, res) => {
+    try {
+      const handler = await import('../api/rbac/change-password.js');
+      return await (handler.default || handler)(req, res);
+    } catch (error) {
+      console.error('Error delegating to change-password endpoint:', error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
 
   // Simple in-memory cache for RBAC data (in production, use Redis or similar)
   let rbacUsersCache = {
@@ -4297,67 +4834,24 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/rbac/assign-role", authenticate, requirePermission("role_management"), async (req, res) => {
+  // Delegate to Supabase-backed serverless handler
+  app.post("/api/rbac/assign-role", async (req, res) => {
     try {
-      const { resourceId, role } = req.body;
-
-      if (!resourceId || !role) {
-        return res.status(400).json({ message: "resourceId and role are required" });
-      }
-
-      // Get the resource first
-      const resource = await storage.getResource(resourceId);
-      if (!resource) {
-        return res.status(404).json({ message: "Resource not found" });
-      }
-
-      // Check if user account exists for this resource
-      let user = await storage.getUserByEmail(resource.email);
-
-      if (!user) {
-        // Create user account for this resource
-        const defaultPassword = Math.random().toString(36).slice(-8);
-        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
-        user = await storage.createUser({
-          email: resource.email,
-          password: hashedPassword,
-          resourceId: resource.id,
-          isActive: true,
-        });
-      }
-
-      const assignedBy = req.user?.id;
-      await authService.assignRole(user.id, role, resourceId, assignedBy);
-
-      // Invalidate RBAC cache after successful role assignment
-      rbacUsersCache.data = null;
-      rbacUsersCache.timestamp = 0;
-
-      res.json({ message: "Role assigned successfully" });
+      const handler = await import('../api/rbac/assign-role.js');
+      return await (handler.default || handler)(req, res);
     } catch (error) {
-      console.error("Failed to assign role:", error);
+      console.error('Error delegating to assign-role endpoint:', error);
       res.status(500).json({ message: "Failed to assign role" });
     }
   });
 
-  app.post("/api/rbac/remove-role", authenticate, requirePermission("role_management"), async (req, res) => {
+  // Delegate to Supabase-backed serverless handler
+  app.post("/api/rbac/remove-role", async (req, res) => {
     try {
-      const { userId, role, resourceId } = req.body;
-
-      if (!userId || !role) {
-        return res.status(400).json({ message: "userId and role are required" });
-      }
-
-      await authService.removeRole(userId, role, resourceId);
-
-      // Invalidate RBAC cache after successful role removal
-      rbacUsersCache.data = null;
-      rbacUsersCache.timestamp = 0;
-
-      res.json({ message: "Role removed successfully" });
+      const handler = await import('../api/rbac/remove-role.js');
+      return await (handler.default || handler)(req, res);
     } catch (error) {
-      console.error("Failed to remove role:", error);
+      console.error('Error delegating to remove-role endpoint:', error);
       res.status(500).json({ message: "Failed to remove role" });
     }
   });
@@ -4437,17 +4931,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  // RBAC User Profiles - delegate to new API handler for User Management interface
-  app.get("/api/rbac/user-profiles", async (req, res) => {
-    try {
-      // Import and use the new Vercel API endpoint with service role key (bypasses RLS)
-      const userProfilesHandler = await import('../api/rbac/user-profiles.js');
-      return await userProfilesHandler.default(req, res);
-    } catch (error) {
-      console.error('Error delegating to user-profiles endpoint:', error);
-      res.status(500).json({ message: "Failed to fetch user profiles" });
-    }
-  });
+
 
   app.post("/api/rbac/update-role-permissions", authenticate, requirePermission("role_management"), async (req, res) => {
     try {
@@ -4459,7 +4943,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
 
       // Update role permissions in the auth service
       await authService.updateRolePermissions(role, permissions);
-      
+
       res.json({ message: "Role permissions updated successfully" });
     } catch (error) {
       console.error("Failed to update role permissions:", error);

@@ -14,6 +14,7 @@ import { Shield, Plus, Edit, Trash2, Users, Key, AlertCircle, Save, X } from 'lu
 import { supabase } from '@/lib/supabase'
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
 import { useToast } from '@/hooks/use-toast'
+import { useErrorHandler } from '@/lib/error-handler'
 import type { UserRole, PermissionType } from '@/types/rbac'
 
 interface Role {
@@ -44,8 +45,15 @@ interface CreateRoleData {
 
 export function RoleHierarchyManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [createRoleData, setCreateRoleData] = useState<CreateRoleData>({
+    name: '',
+    display_name: '',
+    description: '',
+    permissions: []
+  })
+  const [editRoleData, setEditRoleData] = useState<CreateRoleData>({
     name: '',
     display_name: '',
     description: '',
@@ -54,6 +62,7 @@ export function RoleHierarchyManager() {
   const { user: currentUser } = useSupabaseAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { handleError, getUserMessage } = useErrorHandler()
 
   // Fetch roles with permissions and user counts
   const { data: roles, isLoading: rolesLoading, error: rolesError } = useQuery({
@@ -157,9 +166,72 @@ export function RoleHierarchyManager() {
       })
     },
     onError: (error: Error) => {
+      const errorId = handleError(error, {
+        component: 'RoleManagement',
+        action: 'createRole'
+      })
+
+      const userMessage = getUserMessage(error, { component: 'RoleManagement' })
+
+      toast({
+        title: 'Error Creating Role',
+        description: `${userMessage} (Error ID: ${errorId})`,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Update role mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ roleId, roleData }: { roleId: number; roleData: CreateRoleData }) => {
+      // Update the role
+      const { error: roleError } = await supabase
+        .from('roles')
+        .update({
+          name: roleData.name,
+          display_name: roleData.display_name,
+          description: roleData.description,
+        })
+        .eq('id', roleId)
+
+      if (roleError) throw roleError
+
+      // Remove existing permissions
+      const { error: removeError } = await supabase
+        .from('role_permissions')
+        .delete()
+        .eq('role_id', roleId)
+
+      if (removeError) throw removeError
+
+      // Add new permissions
+      if (roleData.permissions.length > 0) {
+        const rolePermissions = roleData.permissions.map(permissionId => ({
+          role_id: roleId,
+          permission_id: permissionId
+        }))
+
+        const { error: permissionsError } = await supabase
+          .from('role_permissions')
+          .insert(rolePermissions)
+
+        if (permissionsError) throw permissionsError
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'roles-hierarchy'] })
+      setIsEditDialogOpen(false)
+      setEditingRole(null)
+      setEditRoleData({ name: '', display_name: '', description: '', permissions: [] })
+      toast({
+        title: 'Role Updated',
+        description: 'Role has been successfully updated.',
+      })
+    },
+    onError: (error: Error) => {
       toast({
         title: 'Error',
-        description: `Failed to create role: ${error.message}`,
+        description: `Failed to update role: ${error.message}`,
         variant: 'destructive',
       })
     },
@@ -216,6 +288,30 @@ export function RoleHierarchyManager() {
     createRoleMutation.mutate(createRoleData)
   }
 
+  const handleEditRole = (role: Role) => {
+    setEditingRole(role)
+    setEditRoleData({
+      name: role.name,
+      display_name: role.display_name,
+      description: role.description,
+      permissions: role.permissions.map(p => p.id)
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdateRole = () => {
+    if (!editRoleData.name || !editRoleData.display_name || !editingRole) {
+      toast({
+        title: 'Validation Error',
+        description: 'Role name and display name are required.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    updateRoleMutation.mutate({ roleId: editingRole.id, roleData: editRoleData })
+  }
+
   const handleDeleteRole = (role: Role) => {
     if (role.user_count && role.user_count > 0) {
       toast({
@@ -233,6 +329,15 @@ export function RoleHierarchyManager() {
 
   const handlePermissionToggle = (permissionId: number, checked: boolean) => {
     setCreateRoleData(prev => ({
+      ...prev,
+      permissions: checked
+        ? [...prev.permissions, permissionId]
+        : prev.permissions.filter(id => id !== permissionId)
+    }))
+  }
+
+  const handleEditPermissionToggle = (permissionId: number, checked: boolean) => {
+    setEditRoleData(prev => ({
       ...prev,
       permissions: checked
         ? [...prev.permissions, permissionId]
@@ -381,6 +486,107 @@ export function RoleHierarchyManager() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Edit Role Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Role</DialogTitle>
+                  <DialogDescription>
+                    Modify role details and permissions
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-role-name">Role Name</Label>
+                      <Input
+                        id="edit-role-name"
+                        placeholder="e.g., project_manager"
+                        value={editRoleData.name}
+                        onChange={(e) => setEditRoleData(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-display-name">Display Name</Label>
+                      <Input
+                        id="edit-display-name"
+                        placeholder="e.g., Project Manager"
+                        value={editRoleData.display_name}
+                        onChange={(e) => setEditRoleData(prev => ({ ...prev, display_name: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-description">Description</Label>
+                    <Textarea
+                      id="edit-description"
+                      placeholder="Describe the role's responsibilities..."
+                      value={editRoleData.description}
+                      onChange={(e) => setEditRoleData(prev => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <Label>Permissions</Label>
+                    <div className="mt-2 space-y-4 max-h-64 overflow-y-auto">
+                      {allPermissions && Object.entries(
+                        allPermissions.reduce((acc, permission) => {
+                          const category = permission.category || 'General'
+                          if (!acc[category]) acc[category] = []
+                          acc[category].push(permission)
+                          return acc
+                        }, {} as Record<string, Permission[]>)
+                      ).map(([category, permissions]) => (
+                        <div key={category}>
+                          <h4 className="font-medium text-sm mb-2">{category}</h4>
+                          <div className="space-y-2 ml-4">
+                            {permissions.map((permission) => (
+                              <div key={permission.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`edit-permission-${permission.id}`}
+                                  checked={editRoleData.permissions.includes(permission.id)}
+                                  onCheckedChange={(checked) =>
+                                    handleEditPermissionToggle(permission.id, checked as boolean)
+                                  }
+                                />
+                                <Label
+                                  htmlFor={`edit-permission-${permission.id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {permission.name}
+                                </Label>
+                                <span className="text-xs text-gray-500">
+                                  {permission.description}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleUpdateRole}
+                      disabled={updateRoleMutation.isPending}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {updateRoleMutation.isPending ? 'Updating...' : 'Update Role'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         
@@ -418,7 +624,11 @@ export function RoleHierarchyManager() {
                           <Key className="w-3 h-3" />
                           <span>{role.permissions.length} permissions</span>
                         </Badge>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditRole(role)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button 

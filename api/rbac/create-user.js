@@ -234,8 +234,12 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       .upsert({
         id: authUserId,
         email: email,
+        full_name: name,
         first_name: firstName,
         last_name: lastName,
+        department: department,
+        job_role: jobRole,
+        weekly_capacity: capacity,
         resource_id: resource.id,
         is_active: true,
         updated_at: new Date().toISOString()
@@ -333,10 +337,14 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
       user: {
         id: userProfile.id,
         email: userProfile.email,
-        resourceId: userProfile.resource_id,
+        name: userProfile.full_name,
         firstName: userProfile.first_name,
         lastName: userProfile.last_name,
-        fullName: `${userProfile.first_name} ${userProfile.last_name}`,
+        fullName: userProfile.full_name,
+        department: userProfile.department,
+        jobRole: userProfile.job_role,
+        capacity: userProfile.weekly_capacity,
+        resourceId: userProfile.resource_id,
         role: role
       },
       resource: {

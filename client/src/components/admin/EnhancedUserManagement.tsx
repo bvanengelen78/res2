@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Users, Search, UserPlus, Edit, Trash2, Shield, AlertCircle, Settings, History, Key } from 'lucide-react'
+import { Users, Search, UserPlus, Edit, Trash2, Shield, AlertCircle, Settings, History, Key, X, Plus, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
 import { AdminUserRegistration } from '@/components/auth/AdminUserRegistration'
 import { useToast } from '@/hooks/use-toast'
+import { useErrorHandler } from '@/lib/error-handler'
+import { authApi } from '@/lib/auth-api'
 import type { UserProfile, Role, UserRole, PermissionType } from '@/types/rbac'
 
 interface UserWithRoles extends UserProfile {
@@ -45,119 +47,199 @@ export function EnhancedUserManagement() {
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
+  const [newPassword, setNewPassword] = useState('')
+  const [showPasswordField, setShowPasswordField] = useState(false)
   const { user: currentUser } = useSupabaseAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { handleError, getUserMessage, getRecoveryOptions } = useErrorHandler()
 
   // Fetch users with roles using backend API (bypasses RLS)
   const { data: users, isLoading: usersLoading, error: usersError } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async (): Promise<UserWithRoles[]> => {
-      try {
-        const session = await supabase.auth.getSession()
-        const response = await fetch('/api/rbac/user-profiles', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.data.session?.access_token}`,
-          },
-        })
+      const response = await authApi.get<UserWithRoles[]>(`/api/rbac/user-profiles?t=${Date.now()}`)
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to fetch user profiles')
-        }
-
-        const result = await response.json()
-        return result.data || []
-      } catch (error) {
-        console.error('Error fetching users:', error)
-        throw error
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch user profiles')
       }
+
+      return response.data || []
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Disable cache temporarily to see fresh data
+    retry: 1, // Only retry once on failure
+    retryDelay: 1000, // Wait 1 second before retry
   })
 
-  // Fetch available roles with permissions
-  const { data: rolesWithPermissions, isLoading: rolesLoading } = useQuery({
+  // Fetch available roles with permissions via backend (bypass RLS)
+  const { data: rolesWithPermissions, isLoading: rolesWithPermissionsLoading } = useQuery({
     queryKey: ['admin', 'roles-with-permissions'],
+    queryFn: async () => {
+      const response = await authApi.get<RoleWithPermissions[]>('/api/rbac/roles-hierarchy')
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch roles')
+      }
+
+      return response.data || []
+    },
+  })
+
+  // Fetch all permissions via backend (bypass RLS)
+  const { data: allPermissions } = useQuery({
+    queryKey: ['admin', 'permissions'],
+    queryFn: async () => {
+      const response = await authApi.get<Permission[]>('/api/rbac/permissions')
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch permissions')
+      }
+
+      return response.data || []
+    },
+  })
+
+  // Fetch available roles for assignment
+  const { data: availableRoles, isLoading: availableRolesLoading } = useQuery({
+    queryKey: ['admin', 'available-roles'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roles')
-        .select(`
-          *,
-          role_permissions (
-            permissions (
-              id,
-              name,
-              description,
-              category,
-              is_active
-            )
-          )
-        `)
+        .select('id, name, display_name, description')
         .eq('is_active', true)
         .order('name')
 
       if (error) throw error
-      
-      return data?.map(role => ({
-        ...role,
-        permissions: role.role_permissions?.map(rp => rp.permissions).filter(Boolean) || []
-      })) as RoleWithPermissions[]
+      return data as Role[]
     },
   })
 
-  // Fetch all permissions
-  const { data: allPermissions } = useQuery({
-    queryKey: ['admin', 'permissions'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('permissions')
-        .select('*')
-        .eq('is_active', true)
-        .order('category', { ascending: true })
-        .order('name', { ascending: true })
-
-      if (error) throw error
-      return data as Permission[]
-    },
-  })
-
-  // Update user role mutation
-  const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: UserRole }) => {
-      const response = await fetch('/api/rbac/assign-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-        body: JSON.stringify({
-          userId,
-          roleName: newRole,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to assign role')
+  // Assign role mutation
+  const assignRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: number }) => {
+      // Get the role name from available roles
+      const role = rolesWithPermissions?.find(r => r.id === roleId)
+      if (!role) {
+        throw new Error('Role not found')
       }
 
-      return await response.json()
+      const response = await authApi.post('/api/rbac/assign-role', {
+        userId,
+        roleName: role.name,
+      })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to assign role')
+      }
+
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       setIsEditDialogOpen(false)
       toast({
-        title: 'Role Updated',
+        title: 'Role Assigned',
         description: 'User role has been successfully updated.',
       })
     },
     onError: (error: Error) => {
+      const errorId = handleError(error, {
+        component: 'UserManagement',
+        action: 'assignRole',
+        userId: currentUser?.id
+      })
+
+      const userMessage = getUserMessage(error, { component: 'UserManagement' })
+      const recoveryOptions = getRecoveryOptions(error, { component: 'UserManagement' })
+
       toast({
-        title: 'Error',
-        description: `Failed to update user role: ${error.message}`,
+        title: 'Error Assigning Role',
+        description: `${userMessage} (Error ID: ${errorId})`,
+        variant: 'destructive',
+      })
+
+      console.log('Recovery suggestions:', recoveryOptions)
+    },
+  })
+
+  // Remove role mutation
+  const removeRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: number }) => {
+      // Get the role name from user's current roles
+      const role = selectedUser?.roles.find(r => r.id === roleId)
+      if (!role) {
+        throw new Error('Role not found in user roles')
+      }
+
+      const response = await authApi.post('/api/rbac/remove-role', {
+        userId,
+        roleName: role.name,
+      })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to remove role')
+      }
+
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      toast({
+        title: 'Role Removed',
+        description: 'User role has been successfully removed.',
+      })
+    },
+    onError: (error: Error) => {
+      const errorId = handleError(error, {
+        component: 'UserManagement',
+        action: 'removeRole',
+        userId: currentUser?.id
+      })
+
+      const userMessage = getUserMessage(error, { component: 'UserManagement' })
+
+      toast({
+        title: 'Error Removing Role',
+        description: `${userMessage} (Error ID: ${errorId})`,
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Change password mutation
+  const changePasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      const response = await authApi.post('/api/rbac/change-password', {
+        userId,
+        newPassword,
+      })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to change password')
+      }
+
+      return response.data
+    },
+    onSuccess: () => {
+      setNewPassword('')
+      setShowPasswordField(false)
+      toast({
+        title: 'Password Changed',
+        description: 'User password has been successfully updated.',
+      })
+    },
+    onError: (error: Error) => {
+      const errorId = handleError(error, {
+        component: 'UserManagement',
+        action: 'changePassword',
+        userId: currentUser?.id
+      })
+
+      const userMessage = getUserMessage(error, { component: 'UserManagement' })
+
+      toast({
+        title: 'Error Changing Password',
+        description: `${userMessage} (Error ID: ${errorId})`,
         variant: 'destructive',
       })
     },
@@ -166,23 +248,13 @@ export function EnhancedUserManagement() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await fetch('/api/rbac/delete-user', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-        body: JSON.stringify({
-          userId,
-        }),
-      })
+      const response = await authApi.delete('/api/rbac/delete-user', { userId })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to deactivate user')
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to deactivate user')
       }
 
-      return await response.json()
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
@@ -192,9 +264,17 @@ export function EnhancedUserManagement() {
       })
     },
     onError: (error: Error) => {
+      const errorId = handleError(error, {
+        component: 'UserManagement',
+        action: 'deleteUser',
+        userId: currentUser?.id
+      })
+
+      const userMessage = getUserMessage(error, { component: 'UserManagement' })
+
       toast({
-        title: 'Error',
-        description: `Failed to deactivate user: ${error.message}`,
+        title: 'Error Deactivating User',
+        description: `${userMessage} (Error ID: ${errorId})`,
         variant: 'destructive',
       })
     },
@@ -231,17 +311,56 @@ export function EnhancedUserManagement() {
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateRole = (newRole: UserRole) => {
+  const handleAssignRole = (roleId: number) => {
     if (!selectedUser) return
-    updateUserRoleMutation.mutate({ userId: selectedUser.id, newRole })
+    assignRoleMutation.mutate({ userId: selectedUser.id, roleId })
+  }
+
+  const handleRemoveRole = (roleId: number) => {
+    if (!selectedUser) return
+    removeRoleMutation.mutate({ userId: selectedUser.id, roleId })
+  }
+
+  const handleChangePassword = () => {
+    if (!selectedUser || !newPassword.trim()) return
+    changePasswordMutation.mutate({ userId: selectedUser.id, newPassword })
+  }
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
+    let password = ''
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewPassword(password)
   }
 
   if (usersError) {
+    const errorId = handleError(usersError, {
+      component: 'UserManagement',
+      action: 'fetchUsers',
+      userId: currentUser?.id
+    })
+
+    const userMessage = getUserMessage(usersError, { component: 'UserManagement' })
+    const recoveryOptions = getRecoveryOptions(usersError, { component: 'UserManagement' })
+
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Failed to load users: {usersError.message}
+          <div className="space-y-2">
+            <p>{userMessage}</p>
+            <p className="text-xs">Error ID: {errorId}</p>
+            <div className="text-xs">
+              <p className="font-medium">Try:</p>
+              <ul className="list-disc list-inside">
+                {recoveryOptions.map((option, index) => (
+                  <li key={index}>{option}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </AlertDescription>
       </Alert>
     )
@@ -372,7 +491,7 @@ export function EnhancedUserManagement() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {new Date(user.created_at).toLocaleDateString()}
+                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -415,7 +534,7 @@ export function EnhancedUserManagement() {
                 </div>
 
                 <div className="grid gap-4">
-                  {rolesLoading ? (
+                  {rolesWithPermissionsLoading ? (
                     <div className="text-center py-8">
                       <div className="flex items-center justify-center space-x-2">
                         <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -605,44 +724,146 @@ export function EnhancedUserManagement() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit User Role</DialogTitle>
+            <DialogTitle>Manage User Roles</DialogTitle>
             <DialogDescription>
-              Update the role for {selectedUser?.full_name || selectedUser?.email}
+              Assign or remove roles for {selectedUser?.full_name || selectedUser?.email}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedUser && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Current Roles */}
               <div>
-                <label className="text-sm font-medium">Current Role</label>
-                <div className="mt-1">
-                  {selectedUser.roles.map((role) => (
-                    <Badge key={role.id} variant="outline">
-                      {role.display_name}
-                    </Badge>
-                  ))}
+                <label className="text-sm font-medium mb-2 block">Current Roles</label>
+                <div className="space-y-2">
+                  {selectedUser.roles.length > 0 ? (
+                    selectedUser.roles.map((role) => (
+                      <div key={role.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <Badge variant="outline">{role.display_name}</Badge>
+                          <div>
+                            <p className="text-sm font-medium">{role.display_name}</p>
+                            <p className="text-xs text-gray-500">{role.description}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRole(role.id)}
+                          disabled={removeRoleMutation.isPending}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No roles assigned</p>
+                  )}
                 </div>
               </div>
-              
+
+              {/* Available Roles */}
               <div>
-                <label className="text-sm font-medium">New Role</label>
-                <Select onValueChange={(value) => handleUpdateRole(value as UserRole)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select new role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className="text-sm font-medium mb-2 block">Available Roles</label>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {availableRoles?.filter(role =>
+                    !selectedUser.roles.some(userRole => userRole.id === role.id)
+                  ).map((role) => (
+                    <div key={role.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <Badge variant="secondary">{role.display_name}</Badge>
+                        <div>
+                          <p className="text-sm font-medium">{role.display_name}</p>
+                          <p className="text-xs text-gray-500">{role.description}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAssignRole(role.id)}
+                        disabled={assignRoleMutation.isPending}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Assign
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                {availableRoles?.filter(role =>
+                  !selectedUser.roles.some(userRole => userRole.id === role.id)
+                ).length === 0 && (
+                  <p className="text-sm text-gray-500 italic">All available roles are already assigned</p>
+                )}
               </div>
-              
+
+              {/* Password Management */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium">Password Management</label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPasswordField(!showPasswordField)}
+                  >
+                    <Key className="w-4 h-4 mr-1" />
+                    {showPasswordField ? 'Cancel' : 'Change Password'}
+                  </Button>
+                </div>
+
+                {showPasswordField && (
+                  <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                    <div className="flex space-x-2">
+                      <Input
+                        type="password"
+                        placeholder="Enter new password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        disabled={changePasswordMutation.isPending}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={generateRandomPassword}
+                        disabled={changePasswordMutation.isPending}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowPasswordField(false)
+                          setNewPassword('')
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleChangePassword}
+                        disabled={changePasswordMutation.isPending || !newPassword.trim()}
+                      >
+                        {changePasswordMutation.isPending ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Updating...</span>
+                          </div>
+                        ) : (
+                          'Update Password'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                  Cancel
+                  Close
                 </Button>
               </div>
             </div>

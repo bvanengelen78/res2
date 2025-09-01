@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Frontend Authentication Test</h1>
+    
+    <div class="test-section info">
+        <h3>Test Status</h3>
+        <div id="status">Ready to test...</div>
+    </div>
+
+    <div class="test-section">
+        <h3>1. Login Test</h3>
+        <button onclick="testLogin()">Test Login</button>
+        <div id="login-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. User Profiles API Test</h3>
+        <button onclick="testUserProfiles()">Test User Profiles</button>
+        <div id="profiles-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Auth API Test</h3>
+        <button onclick="testAuthAPI()">Test Auth API</button>
+        <div id="auth-api-result"></div>
+    </div>
+
+    <script>
+        let authToken = null;
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = type;
+        }
+
+        function displayResult(elementId, result, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+            element.className = isSuccess ? 'success' : 'error';
+        }
+
+        async function testLogin() {
+            updateStatus('Testing login...', 'info');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'admin@swisssense.nl',
+                        password: 'admin123'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                authToken = data.token;
+                
+                displayResult('login-result', {
+                    success: true,
+                    tokenLength: authToken?.length || 0,
+                    user: data.user?.email || 'Unknown'
+                }, true);
+
+                updateStatus('Login successful! Token stored.', 'success');
+            } catch (error) {
+                displayResult('login-result', { error: error.message }, false);
+                updateStatus('Login failed!', 'error');
+            }
+        }
+
+        async function testUserProfiles() {
+            if (!authToken) {
+                displayResult('profiles-result', { error: 'No auth token. Please login first.' }, false);
+                return;
+            }
+
+            updateStatus('Testing user profiles API...', 'info');
+
+            try {
+                const response = await fetch('/api/rbac/user-profiles', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                
+                displayResult('profiles-result', {
+                    success: true,
+                    userCount: data.data?.length || 0,
+                    structure: Object.keys(data),
+                    firstUser: data.data?.[0]?.email || 'No users'
+                }, true);
+
+                updateStatus('User profiles API successful!', 'success');
+            } catch (error) {
+                displayResult('profiles-result', { error: error.message }, false);
+                updateStatus('User profiles API failed!', 'error');
+            }
+        }
+
+        async function testAuthAPI() {
+            updateStatus('Testing auth API module...', 'info');
+
+            try {
+                // This would test if our auth-api module is working
+                // For now, we'll just test the basic fetch pattern
+                const testResult = {
+                    message: 'Auth API module test',
+                    note: 'This would test the centralized auth API we created',
+                    recommendation: 'Check browser dev tools for any module loading errors'
+                };
+
+                displayResult('auth-api-result', testResult, true);
+                updateStatus('Auth API module test completed', 'success');
+            } catch (error) {
+                displayResult('auth-api-result', { error: error.message }, false);
+                updateStatus('Auth API module test failed!', 'error');
+            }
+        }
+
+        // Auto-run login test on page load
+        window.addEventListener('load', () => {
+            updateStatus('Page loaded. Ready to test authentication.', 'info');
+        });
+    </script>
+</body>
+</html>

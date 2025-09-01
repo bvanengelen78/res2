@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
 import { invalidateUserCachesProduction } from "@/utils/productionCacheUtils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress"
 import { UserPlus, AlertCircle, CheckCircle, Eye, EyeOff, Copy, RefreshCw, Shield, Key } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { authApi } from "@/lib/auth-api"
 import { DEFAULT_ROLE_PERMISSIONS, type UserRole } from "@/types/rbac"
 import { useDepartments } from "@/hooks/useDepartments"
 import { useJobRoles } from "@/hooks/useJobRoles"
@@ -40,9 +41,7 @@ const userRegistrationSchema = z.object({
   lastName: z.string()
     .min(1, "Last name is required")
     .max(50, "Last name must be less than 50 characters"),
-  role: z.enum(["user", "manager", "admin"], {
-    required_error: "Please select a role",
-  }),
+  role: z.string().min(1, "Please select a role"),
   department: z.string()
     .min(1, "Department is required")
     .max(100, "Department must be less than 100 characters"),
@@ -163,12 +162,29 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
   const [emailExists, setEmailExists] = useState(false)
   const [passwordTouched, setPasswordTouched] = useState(false)
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [pendingUserData, setPendingUserData] = useState<UserRegistrationData | null>(null)
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   // Fetch departments and job roles dynamically
   const { data: departments, isLoading: departmentsLoading, error: departmentsError } = useDepartments()
   const { data: jobRoles, isLoading: jobRolesLoading, error: jobRolesError } = useJobRoles()
+
+  // Fetch available roles dynamically
+  const { data: availableRoles, isLoading: rolesLoading, error: rolesError } = useQuery({
+    queryKey: ['admin', 'available-roles-creation'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('roles')
+        .select('id, name, display_name, description')
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) throw error
+      return data
+    },
+  })
 
   const form = useForm<UserRegistrationData>({
     resolver: zodResolver(userRegistrationSchema),
@@ -178,13 +194,22 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
       confirmPassword: "",
       firstName: "",
       lastName: "",
-      role: "user",
+      role: "",
       department: "General",
       jobRole: "Employee",
       capacity: 40,
     },
     mode: "onChange", // Enable real-time validation
   })
+
+  // Set default role when roles are loaded
+  useEffect(() => {
+    if (availableRoles && availableRoles.length > 0 && !form.watch("role")) {
+      // Default to 'user' role if available, otherwise first role
+      const defaultRole = availableRoles.find(role => role.name === 'user') || availableRoles[0]
+      form.setValue("role", defaultRole.name)
+    }
+  }, [availableRoles, form])
 
   // Watch password for strength calculation
   const watchedPassword = form.watch("password")
@@ -257,81 +282,39 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
 
   const createUserMutation = useMutation({
     mutationFn: async (data: UserRegistrationData) => {
-      // Get session and add debugging
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      console.log('Session debug:', {
-        hasSession: !!sessionData.session,
-        hasAccessToken: !!sessionData.session?.access_token,
-        tokenLength: sessionData.session?.access_token?.length || 0,
-        sessionError: sessionError?.message,
-        user: sessionData.session?.user?.email
-      });
-
-      if (!sessionData.session?.access_token) {
-        throw new Error('No authentication token available. Please log in again.');
-      }
-
-      // Use our backend API to create user with proper RBAC integration
-      const response = await fetch('/api/rbac/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`,
-        },
-        body: JSON.stringify({
-          name: `${data.firstName} ${data.lastName}`,
-          email: data.email,
-          role: data.role,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          password: data.password,
-          department: data.department,
-          jobRole: data.jobRole,
-          capacity: data.capacity,
-        }),
+      // Use our centralized auth API for user creation
+      const response = await authApi.post('/api/rbac/create-user', {
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        role: data.role,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        password: data.password,
+        department: data.department,
+        jobRole: data.jobRole,
+        capacity: data.capacity,
       })
 
-      if (!response.ok) {
-        console.error('User creation failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: response.url,
-          headers: Object.fromEntries(response.headers.entries())
-        })
-
-        let errorMessage = 'Failed to create user'
-        try {
-          const errorData = await response.json()
-          console.error('Error response data:', errorData)
-          errorMessage = errorData.error || errorMessage
-        } catch (parseError) {
-          // If JSON parsing fails, try to get text
-          try {
-            const errorText = await response.text()
-            console.error('Error response text:', errorText)
-            if (errorText && errorText.length < 200) {
-              errorMessage = errorText
-            }
-          } catch (textError) {
-            console.error('Could not parse error response:', textError)
-          }
-        }
-
-        throw new Error(errorMessage)
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create user')
       }
 
-      return await response.json()
+      return response.data
     },
     onSuccess: async (data) => {
       const createdPassword = data.defaultPassword || generatedPassword
-      setSuccess(`User ${data.user.email} created successfully!`)
+      const selectedRole = availableRoles?.find(role => role.name === data.user.role)
+      const formData = form.getValues()
+      const userName = `${formData.firstName} ${formData.lastName}`.trim()
+
+      setSuccess(`User ${data.user.email} created successfully with ${selectedRole?.display_name || data.user.role} role!`)
       setGeneratedPassword(createdPassword)
       setError(null)
 
       toast({
         title: "User Created Successfully",
-        description: `User account for ${data.user.email} has been created with ${data.user.role} role.`,
+        description: `${userName} (${data.user.email}) has been created with ${selectedRole?.display_name || data.user.role} role and added to ${formData.department} department.`,
+        duration: 5000,
       })
 
       // Log environment information for debugging
@@ -429,7 +412,17 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
 
     setError(null)
     setSuccess(null)
-    await createUserMutation.mutateAsync(data)
+
+    // Show confirmation dialog
+    setPendingUserData(data)
+    setShowConfirmation(true)
+  }
+
+  const handleConfirmCreate = async () => {
+    if (!pendingUserData) return
+
+    setShowConfirmation(false)
+    await createUserMutation.mutateAsync(pendingUserData)
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -443,6 +436,8 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
       setEmailExists(false)
       setPasswordTouched(false)
       setConfirmPasswordTouched(false)
+      setShowConfirmation(false)
+      setPendingUserData(null)
     }
   }
 
@@ -622,41 +617,34 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
                   <Select
                     value={form.watch("role")}
                     onValueChange={(value) => form.setValue("role", value as any)}
-                    disabled={createUserMutation.isPending}
+                    disabled={createUserMutation.isPending || rolesLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a role" />
+                      <SelectValue placeholder={
+                        rolesLoading ? "Loading roles..." :
+                        rolesError ? "Error loading roles" :
+                        "Select a role"
+                      } />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="user">
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">User</div>
-                            <div className="text-xs text-gray-500">Basic access to time logging and dashboard</div>
+                      {availableRoles?.map((role) => (
+                        <SelectItem key={role.id} value={role.name}>
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <div>
+                              <div className="font-medium">{role.display_name}</div>
+                              <div className="text-xs text-gray-500">{role.description}</div>
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="manager">
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">Manager</div>
-                            <div className="text-xs text-gray-500">Team management and reporting capabilities</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="admin">
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">Admin</div>
-                            <div className="text-xs text-gray-500">Full system access and user management</div>
-                          </div>
-                        </div>
-                      </SelectItem>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {rolesError && (
+                    <p className="text-sm text-yellow-600">
+                      Error loading roles: {rolesError.message}
+                    </p>
+                  )}
                   {form.formState.errors.role && (
                     <p className="text-sm text-red-600">
                       {form.formState.errors.role.message}
@@ -926,6 +914,71 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
           )}
         </div>
       </DialogContent>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm User Creation</DialogTitle>
+            <DialogDescription>
+              Please review the user details before creating the account.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingUserData && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="font-medium">Name:</span>
+                  <span>{pendingUserData.firstName} {pendingUserData.lastName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Email:</span>
+                  <span>{pendingUserData.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Role:</span>
+                  <span className="flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    {availableRoles?.find(role => role.name === pendingUserData.role)?.display_name || pendingUserData.role}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Department:</span>
+                  <span>{pendingUserData.department}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Job Role:</span>
+                  <span>{pendingUserData.jobRole}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Weekly Capacity:</span>
+                  <span>{pendingUserData.capacity} hours</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowConfirmation(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmCreate}
+                  disabled={createUserMutation.isPending}
+                >
+                  {createUserMutation.isPending ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Creating...</span>
+                    </div>
+                  ) : (
+                    "Confirm & Create User"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

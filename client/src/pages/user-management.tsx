@@ -1,12 +1,13 @@
-import { UserManagement } from '@/components/admin/UserManagement'
+
 import { EnhancedUserManagement } from '@/components/admin/EnhancedUserManagement'
 import { RoleHierarchyManager } from '@/components/admin/RoleHierarchyManager'
 import { PermissionAssignmentInterface } from '@/components/admin/PermissionAssignmentInterface'
+import { ErrorMonitoringDashboard } from '@/components/admin/ErrorMonitoringDashboard'
 import { AdminGuard } from '@/components/auth/RBACGuard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Shield, Users, Key, Settings } from 'lucide-react'
+import { Shield, Users, Key, Settings, AlertTriangle } from 'lucide-react'
 
 export default function UserManagementPage() {
   return (
@@ -87,10 +88,11 @@ export default function UserManagementPage() {
                   <Key className="w-4 h-4" />
                   Permission Assignment
                 </TabsTrigger>
-                <TabsTrigger value="legacy" className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Legacy Interface
+                <TabsTrigger value="errors" className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Error Monitoring
                 </TabsTrigger>
+
               </TabsList>
 
               <TabsContent value="users" className="space-y-6">
@@ -105,22 +107,11 @@ export default function UserManagementPage() {
                 <PermissionAssignmentInterface />
               </TabsContent>
 
-              <TabsContent value="legacy" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Settings className="w-5 h-5" />
-                      <span>Legacy User Management</span>
-                    </CardTitle>
-                    <CardDescription>
-                      Original user management interface for reference
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <UserManagement />
-                  </CardContent>
-                </Card>
+              <TabsContent value="errors">
+                <ErrorMonitoringDashboard />
               </TabsContent>
+
+
             </Tabs>
           </div>
         </AdminGuard>

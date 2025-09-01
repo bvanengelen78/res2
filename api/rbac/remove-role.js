@@ -1,18 +1,18 @@
 // RBAC Remove Role Endpoint
-// Removes roles from users for Role Management functionality
+// POST /api/rbac/remove-role
+// Removes a role assignment from a user (admin only)
 
+const { z } = require('zod');
 const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { createClient } = require('@supabase/supabase-js');
-const { z } = require('zod');
-
-// Configuration
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 let supabase = null;
-if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
@@ -22,120 +22,91 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
 
 // Input validation schema
 const removeRoleSchema = z.object({
-  userId: z.number().min(1, 'User ID is required'),
-  role: z.enum(['regular_user', 'change_lead', 'manager_change', 'business_controller', 'admin'], {
-    errorMap: () => ({ message: 'Invalid role specified' })
-  }),
-  resourceId: z.number().optional()
+  userId: z.string().uuid('Invalid user ID format'),
+  roleName: z.string().min(1, 'Role name is required'),
 });
-
-// Remove role from user
-async function removeRoleFromUser(userId, role, resourceId) {
-  try {
-    if (!supabase) {
-      throw new Error('Database not available');
-    }
-
-    // Build the query conditions
-    let query = supabase
-      .from('user_roles')
-      .delete()
-      .eq('user_id', userId)
-      .eq('role', role);
-
-    // Add resource_id condition if provided
-    if (resourceId) {
-      query = query.eq('resource_id', resourceId);
-    } else {
-      query = query.is('resource_id', null);
-    }
-
-    const { data, error } = await query.select();
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      throw new Error('Role assignment not found');
-    }
-
-    Logger.info('Role removed successfully', {
-      userId,
-      role,
-      resourceId,
-      removedCount: data.length
-    });
-
-    return {
-      success: true,
-      message: `Role ${role} removed from user`,
-      removedCount: data.length
-    };
-
-  } catch (error) {
-    Logger.error('Error removing role', { 
-      error: error.message, 
-      userId, 
-      role, 
-      resourceId 
-    });
-    throw error;
-  }
-}
 
 // Main handler
 const removeRoleHandler = async (req, res, { user, validatedData }) => {
   try {
-    Logger.info('RBAC Remove Role request', { 
-      method: req.method, 
-      userId: user?.id,
-      data: validatedData
+    const { userId, roleName } = validatedData;
+
+    Logger.info('RBAC remove role request', {
+      adminUserId: user.id,
+      adminEmail: user.email,
+      targetUserId: userId,
+      roleName
     });
 
-    if (req.method !== 'POST') {
-      return createErrorResponse(res, 405, `Method ${req.method} not allowed`);
+    if (!supabase) {
+      return createErrorResponse(res, 500, 'Database service unavailable');
     }
 
-    // Check if user has role management permission
-    if (!user?.permissions?.includes('role_management')) {
-      return createErrorResponse(res, 403, 'Insufficient permissions for role management');
+    // Validate target user exists
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('id, email, is_active')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError || !existingUser) {
+      Logger.warn('Remove role failed - user not found', { userId, fetchError });
+      return createErrorResponse(res, 404, 'User not found');
     }
 
-    const { userId, role, resourceId } = validatedData;
+    // Get role ID by name
+    const { data: roleData, error: roleError } = await supabase
+      .from('roles')
+      .select('id, name')
+      .eq('name', roleName)
+      .eq('is_active', true)
+      .single();
 
-    // Prevent users from removing their own admin role
-    if (userId === user.id && role === 'admin') {
-      return createErrorResponse(res, 400, 'Cannot remove your own admin role');
+    if (roleError || !roleData) {
+      Logger.warn('Remove role failed - role not found', { roleName, roleError });
+      return createErrorResponse(res, 404, `Role not found: ${roleName}`);
     }
 
-    // Remove the role
-    const result = await removeRoleFromUser(userId, role, resourceId);
+    // Find active assignment
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('user_roles')
+      .select('id, is_active')
+      .eq('user_id', userId)
+      .eq('role_id', roleData.id)
+      .eq('is_active', true)
+      .single();
 
-    Logger.info('RBAC Remove Role success', { 
-      userId,
-      role,
-      resourceId,
-      removedBy: user.id,
-      result
+    if (assignmentError || !assignment) {
+      Logger.warn('Remove role failed - no active assignment', { userId, roleName });
+      return createErrorResponse(res, 400, 'User does not have this role');
+    }
+
+    // Soft delete the assignment
+    const { error: removeError } = await supabase
+      .from('user_roles')
+      .update({
+        is_active: false,
+        deactivated_at: new Date().toISOString(),
+        deactivated_by: user.id
+      })
+      .eq('id', assignment.id);
+
+    if (removeError) {
+      Logger.error('Remove role update failed', removeError, { assignmentId: assignment.id });
+      return createErrorResponse(res, 500, `Failed to remove role: ${removeError.message}`);
+    }
+
+    Logger.info('Role removed', { userId, roleName, assignmentId: assignment.id });
+
+    return createSuccessResponse(res, {
+      message: 'Role removed successfully',
+      removedAssignmentId: assignment.id,
+      role: roleData,
+      user: existingUser
     });
-
-    return createSuccessResponse(res, result);
-
   } catch (error) {
-    Logger.error('RBAC Remove Role error', { 
-      error: error.message, 
-      stack: error.stack,
-      userId: user?.id,
-      data: req.body
-    });
-
-    // Return specific error messages for common issues
-    if (error.message.includes('Role assignment not found')) {
-      return createErrorResponse(res, 404, 'Role assignment not found');
-    }
-
-    return createErrorResponse(res, 500, 'Failed to remove role');
+    Logger.error('Remove role failed', error, { userId: user?.id });
+    return createErrorResponse(res, 500, error.message || 'Failed to remove role');
   }
 };
 
@@ -144,8 +115,5 @@ module.exports = withMiddleware(removeRoleHandler, {
   requireAuth: true,
   allowedMethods: ['POST'],
   validateSchema: removeRoleSchema,
-  rateLimit: {
-    windowMs: 60 * 1000, // 1 minute
-    max: 10 // 10 role removals per minute
-  }
+  rateLimit: { windowMs: 60 * 1000, max: 10 }
 });

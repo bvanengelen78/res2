@@ -14,8 +14,9 @@ This document provides comprehensive documentation for the Role-Based Access Con
 6. [Frontend Implementation](#frontend-implementation)
 7. [Backend Security](#backend-security)
 8. [Admin Interface](#admin-interface)
-9. [Developer Guidelines](#developer-guidelines)
-10. [API Reference](#api-reference)
+9. [Troubleshooting & Known Issues](#troubleshooting--known-issues)
+10. [Developer Guidelines](#developer-guidelines)
+11. [API Reference](#api-reference)
 
 ## System Architecture
 
@@ -474,25 +475,46 @@ describe('RBAC System', () => {
 - `GET /api/auth/me` - Get current user profile
 - `POST /api/auth/refresh` - Refresh JWT token
 
-### User Management Endpoints
+### RBAC Management Endpoints ✅ **FULLY FUNCTIONAL**
 
-- `GET /api/admin/users` - List all users (admin only)
-- `POST /api/admin/users` - Create new user (admin only)
-- `PUT /api/admin/users/:id/role` - Update user role (admin only)
-- `DELETE /api/admin/users/:id` - Deactivate user (admin only)
+#### User Profile Management
+- `GET /api/rbac/user-profiles` - List all user profiles with roles (admin only) ✅
+  - **Status**: Fixed - Returns all users correctly
+  - **Solution**: Uses fresh service role client to bypass middleware interference
 
-### Role Management Endpoints
+#### Role Assignment Management
+- `POST /api/rbac/assign-role` - Assign role to user (admin only) ✅
+  - **Status**: Fixed - Successfully assigns roles
+  - **Body**: `{ userId: string, roleName: string }`
+  - **Solution**: Uses fresh service role client to bypass middleware interference
+
+- `POST /api/rbac/remove-role` - Remove role from user (admin only) ✅
+  - **Status**: Fixed - Successfully removes roles
+  - **Body**: `{ userId: string, roleName: string }`
+  - **Solution**: Uses fresh service role client and simplified update query
+
+#### Password Management
+- `POST /api/rbac/change-password` - Change user password (admin only) ✅
+  - **Status**: Fixed - Successfully changes passwords
+  - **Body**: `{ userId: string, newPassword: string }`
+  - **Solution**: Uses fresh service role client for auth operations
+
+### Legacy Admin Endpoints (Deprecated)
+
+- `GET /api/admin/users` - List all users (admin only) ⚠️ **DEPRECATED**
+- `POST /api/admin/users` - Create new user (admin only) ⚠️ **DEPRECATED**
+- `PUT /api/admin/users/:id/role` - Update user role (admin only) ⚠️ **DEPRECATED**
+- `DELETE /api/admin/users/:id` - Deactivate user (admin only) ⚠️ **DEPRECATED**
+
+### Role & Permission Reference Endpoints
 
 - `GET /api/admin/roles` - List all roles (admin only)
 - `POST /api/admin/roles` - Create new role (admin only)
 - `PUT /api/admin/roles/:id` - Update role (admin only)
 - `DELETE /api/admin/roles/:id` - Delete role (admin only)
 
-### Permission Endpoints
-
 - `GET /api/admin/permissions` - List all permissions (admin only)
 - `POST /api/admin/permissions` - Create permission (admin only)
-- `PUT /api/admin/users/:id/permissions` - Assign direct permissions (admin only)
 
 ## Security Considerations
 
@@ -504,7 +526,49 @@ describe('RBAC System', () => {
 6. **HTTPS Only**: All communications encrypted
 7. **CORS Configuration**: Proper cross-origin request handling
 
-## Troubleshooting
+## Troubleshooting & Known Issues
+
+### Critical Issue: Middleware Interference with Service Role Operations
+
+**Problem**: Authentication middleware was interfering with service role operations, causing RBAC endpoints to return "User not found" errors even when using the service role key.
+
+**Root Cause**: The authentication middleware creates an authenticated session context using the anon key client, which affects subsequent database queries due to Row Level Security (RLS) policies. This interference persisted even when using the service role key in the same request context.
+
+**Symptoms**:
+- `/api/rbac/user-profiles` returned only 1 user instead of all users
+- `/api/rbac/assign-role` returned "User not found" errors
+- `/api/rbac/remove-role` returned "User not found" errors
+- `/api/rbac/change-password` returned "User not found" errors
+- Direct database queries worked correctly outside Express routes
+
+**Solution Implemented**:
+Create a fresh service role client within each RBAC endpoint to bypass middleware interference:
+
+```typescript
+// Create a fresh service role client to avoid middleware interference
+const freshSupabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+// Use fresh client for all database operations
+const { data: userProfiles, error } = await freshSupabaseAdmin
+  .from('user_profiles')
+  .select('*')
+  .eq('is_active', true);
+```
+
+**Security Considerations**:
+- RLS policies remain enabled for security
+- Service role operations properly bypass RLS as intended
+- Authentication and authorization still work correctly
+- No security boundaries are compromised
 
 ### Common Issues
 
@@ -522,6 +586,11 @@ describe('RBAC System', () => {
    - Ensure roles exist in database
    - Check role-permission mappings
    - Verify user-role assignments
+
+4. **Service Role Key Issues**:
+   - Ensure SUPABASE_SERVICE_ROLE_KEY is properly configured
+   - Use fresh client instances for admin operations
+   - Avoid sharing client instances between middleware and endpoints
 
 ### Debug Tools
 
