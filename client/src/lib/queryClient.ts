@@ -4,8 +4,14 @@ import { getAuthToken } from "./auth-api";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    // Clone the response to avoid consuming the body
+    const clonedRes = res.clone();
+    try {
+      const text = (await clonedRes.text()) || res.statusText;
+      throw new Error(`${res.status}: ${text}`);
+    } catch (parseError) {
+      throw new Error(`${res.status}: ${res.statusText}`);
+    }
   }
 }
 
@@ -100,20 +106,24 @@ export async function apiRequest(
   } catch (error) {
     console.error(`[API_REQUEST] Request failed:`, error);
     console.error(`[API_REQUEST] Error details:`, {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      url: url
     });
 
     // 🎭 DEMO MODE: Provide mock data fallbacks for failed API requests
-    console.log(`[DEMO_FALLBACK] Providing mock data for ${url}`);
+    console.log(`[DEMO_FALLBACK] API request failed, attempting to provide mock data for ${url}`);
 
     const mockData = getMockDataForEndpoint(url);
     if (mockData !== null) {
-      console.log(`[DEMO_FALLBACK] Returning mock data for ${url}`);
+      console.log(`[DEMO_FALLBACK] Successfully returning mock data for ${url}:`, mockData);
       return mockData;
+    } else {
+      console.warn(`[DEMO_FALLBACK] No mock data available for ${url}`);
     }
 
+    console.error(`[DEMO_FALLBACK] Re-throwing original error for ${url}`);
     throw error;
   }
 }
@@ -318,6 +328,8 @@ function getMockDataForEndpoint(url: string): any {
   const urlObj = new URL(url, window.location.origin);
   const pathname = urlObj.pathname;
   const searchParams = urlObj.searchParams;
+
+  console.log(`[MOCK_DATA] Parsed URL - pathname: ${pathname}, searchParams:`, Object.fromEntries(searchParams.entries()));
 
   // Projects endpoint
   if (pathname === '/api/projects') {
