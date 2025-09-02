@@ -42,5 +42,13 @@ export default defineConfig({
       // Ignore OneDrive temp files and conflicts
       ignored: ['**/.tmp*', '**/*~*', '**/~$*'],
     },
+    proxy: {
+      // Proxy API requests to the Express server
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });
