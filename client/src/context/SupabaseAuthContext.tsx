@@ -1,3 +1,7 @@
+// 🎭 DEMO MODE: Mock Authentication System
+// This version accepts any email/password and grants full admin access
+// Perfect for demonstrations and testing without Supabase connectivity issues
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -37,140 +41,130 @@ const AUTH_KEYS = {
 }
 
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(true) // Always initialized for demo
+  const [mockSession, setMockSession] = useState<Session | null>(null)
+  const [mockUser, setMockUser] = useState<AuthUser | null>(null)
   const queryClient = useQueryClient()
 
-  // Session query
-  const {
-    data: session,
-    isLoading: isSessionLoading,
-    error: sessionError,
-  } = useQuery({
-    queryKey: AUTH_KEYS.session,
-    queryFn: async () => {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (error) throw error
-      return session
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
-    retry: 1,
-  })
+  // Mock session - always return demo session if user is "logged in"
+  const session = mockSession
+  const isSessionLoading = false
+  const sessionError = null
 
-  // User query (depends on session)
-  const {
-    data: user,
-    isLoading: isUserLoading,
-  } = useQuery({
-    queryKey: AUTH_KEYS.user,
-    queryFn: async () => {
-      if (!session?.user) return null
+  // Mock user - always return demo admin user if session exists
+  const user = mockUser
+  const isUserLoading = false
 
-      // Get user with RBAC information from our database
-      const rbacUser = await RBACManager.getUserWithRBAC(session.user.id)
-
-      if (!rbacUser) {
-        // If no RBAC user found, create a basic user object
-        console.warn('No RBAC user found for:', session.user.email)
-        return {
-          ...session.user,
-          email: session.user.email || '',
-          first_name: session.user.user_metadata?.first_name,
-          last_name: session.user.user_metadata?.last_name,
-          full_name: session.user.user_metadata?.full_name,
-          resource_id: session.user.user_metadata?.resource_id,
-          is_active: true,
-          created_at: session.user.created_at,
-          updated_at: session.user.updated_at || session.user.created_at,
-          roles: [],
-          permissions: [],
-          role_assignments: [],
-        } as AuthUser
-      }
-
-      return rbacUser as AuthUser
-    },
-    enabled: !!session?.user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
-  })
-
-  // Sign in mutation
+  // Mock sign in mutation - accepts any credentials
   const signInMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      // Invalidate and refetch auth queries
-      queryClient.invalidateQueries({ queryKey: AUTH_KEYS.session })
-      queryClient.invalidateQueries({ queryKey: AUTH_KEYS.user })
-    },
-    onError: (error: AuthError) => {
-      console.error('Sign in error:', error.message)
-    },
-  })
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-  // Sign out mutation
-  const signOutMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-    },
-    onSuccess: () => {
-      // Clear all auth-related queries
-      queryClient.setQueryData(AUTH_KEYS.session, null)
-      queryClient.setQueryData(AUTH_KEYS.user, null)
-      queryClient.invalidateQueries({ queryKey: ['auth'] })
-    },
-    onError: (error: AuthError) => {
-      console.error('Sign out error:', error.message)
-    },
-  })
-
-  // Refresh session mutation
-  const refreshSessionMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: AUTH_KEYS.session })
-      queryClient.invalidateQueries({ queryKey: AUTH_KEYS.user })
-    },
-  })
-
-  // Set up auth state listener
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Update session in query cache
-        queryClient.setQueryData(AUTH_KEYS.session, session)
-        
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          // Invalidate user query to refetch with new session
-          queryClient.invalidateQueries({ queryKey: AUTH_KEYS.user })
-        } else if (event === 'SIGNED_OUT') {
-          // Clear user data
-          queryClient.setQueryData(AUTH_KEYS.user, null)
-        }
-        
-        if (!isInitialized) {
-          setIsInitialized(true)
+      // Create mock session and user data
+      const mockSessionData = {
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
+        expires_in: 3600,
+        expires_at: Date.now() + 3600000,
+        token_type: 'bearer',
+        user: {
+          id: 'demo-admin-user-id',
+          email: email,
+          aud: 'authenticated',
+          role: 'authenticated',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          user_metadata: {
+            first_name: 'Demo',
+            last_name: 'Admin',
+            full_name: 'Demo Admin User'
+          }
         }
       }
-    )
 
-    return () => {
-      subscription.unsubscribe()
+      const mockUserData = {
+        id: 'demo-admin-user-id',
+        email: email,
+        first_name: 'Demo',
+        last_name: 'Admin',
+        full_name: 'Demo Admin User',
+        resource_id: 1,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        roles: ['admin', 'manager', 'user'],
+        permissions: [
+          'dashboard',
+          'project_management',
+          'resource_management',
+          'time_logging',
+          'submission_overview',
+          'reports',
+          'change_lead_reports',
+          'user_management',
+          'system_admin',
+          'settings',
+          'role_management',
+          'calendar'
+        ],
+        role_assignments: []
+      }
+
+      // Set mock data
+      setMockSession(mockSessionData as Session)
+      setMockUser(mockUserData as AuthUser)
+
+      return { session: mockSessionData, user: mockSessionData.user }
+    },
+    onSuccess: () => {
+      console.log('Mock sign in successful')
+    },
+    onError: (error: any) => {
+      console.error('Mock sign in error:', error.message)
+    },
+  })
+
+  // Mock sign out mutation
+  const signOutMutation = useMutation({
+    mutationFn: async () => {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // Clear mock data
+      setMockSession(null)
+      setMockUser(null)
+    },
+    onSuccess: () => {
+      console.log('Mock sign out successful')
+    },
+    onError: (error: any) => {
+      console.error('Mock sign out error:', error.message)
+    },
+  })
+
+  // Mock refresh session mutation
+  const refreshSessionMutation = useMutation({
+    mutationFn: async () => {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 200))
+      return { session: mockSession, user: mockUser }
+    },
+    onSuccess: () => {
+      console.log('Mock session refresh successful')
+    },
+    onError: (error: any) => {
+      console.error('Mock refresh session error:', error.message)
+    },
+  })
+
+  // Mock auth state - no listener needed for demo mode
+  useEffect(() => {
+    // Always mark as initialized for demo mode
+    if (!isInitialized) {
+      setIsInitialized(true)
     }
-  }, [queryClient, isInitialized])
+  }, [isInitialized])
 
   // Auth functions
   const signIn = async (email: string, password: string) => {
