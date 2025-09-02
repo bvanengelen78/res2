@@ -23,9 +23,22 @@ interface AuthenticatedApiResponse<T = any> {
  */
 export async function getAuthToken(): Promise<string | null> {
   try {
+    // 🎭 DEMO MODE: Check for mock authentication first
+    const mockSession = localStorage.getItem('mock-session')
+    if (mockSession) {
+      console.log('[AUTH-API] Using mock authentication token')
+      try {
+        const parsedSession = JSON.parse(mockSession)
+        return parsedSession.access_token || 'mock-access-token'
+      } catch (e) {
+        console.warn('[AUTH-API] Failed to parse mock session, using default mock token')
+        return 'mock-access-token'
+      }
+    }
+
     // First try to get the current session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
+
     if (sessionError) {
       console.warn('[AUTH-API] Session error:', sessionError)
       return null

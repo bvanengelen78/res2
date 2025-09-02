@@ -55,6 +55,43 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const user = mockUser
   const isUserLoading = false
 
+  // Initialize mock session from localStorage on component mount
+  useEffect(() => {
+    const storedMockSession = localStorage.getItem('mock-session')
+    if (storedMockSession) {
+      try {
+        const parsedSession = JSON.parse(storedMockSession)
+        setMockSession(parsedSession)
+
+        // Also set a corresponding mock user
+        const mockUserData = {
+          id: 'demo-admin-user-id',
+          email: parsedSession.user?.email || 'demo@test.com',
+          first_name: 'Demo',
+          last_name: 'Admin',
+          full_name: 'Demo Admin User',
+          resource_id: 1,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          roles: ['admin', 'manager', 'user'],
+          permissions: [
+            'dashboard', 'project_management', 'resource_management',
+            'time_logging', 'submission_overview', 'reports',
+            'change_lead_reports', 'user_management', 'system_admin',
+            'settings', 'role_management', 'calendar'
+          ],
+          role_assignments: []
+        }
+        setMockUser(mockUserData as AuthUser)
+        console.log('[MOCK-AUTH] Restored mock session from localStorage')
+      } catch (e) {
+        console.warn('[MOCK-AUTH] Failed to parse stored mock session')
+        localStorage.removeItem('mock-session')
+      }
+    }
+  }, [])
+
   // Mock sign in mutation - accepts any credentials
   const signInMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
@@ -115,6 +152,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       setMockSession(mockSessionData as Session)
       setMockUser(mockUserData as AuthUser)
 
+      // Store mock session in localStorage for getAuthToken() to access
+      localStorage.setItem('mock-session', JSON.stringify(mockSessionData))
+      console.log('[MOCK-AUTH] Stored mock session in localStorage for API requests')
+
       return { session: mockSessionData, user: mockSessionData.user }
     },
     onSuccess: () => {
@@ -134,6 +175,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       // Clear mock data
       setMockSession(null)
       setMockUser(null)
+
+      // Clear mock session from localStorage
+      localStorage.removeItem('mock-session')
+      console.log('[MOCK-AUTH] Cleared mock session from localStorage')
     },
     onSuccess: () => {
       console.log('Mock sign out successful')
