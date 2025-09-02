@@ -2,13 +2,15 @@
 
 ## 🚀 Demo Mode Status: ENABLED
 
-The application is now running in **Demo Mode** with mock authentication that accepts any credentials and grants full administrative access.
+The application is now running in **Demo Mode** with mock authentication AND mock data fallbacks that provide a complete demonstration experience without any backend dependencies.
 
-### ✅ Demo Authentication Features
-- **Any email/password combination** will successfully log you in
+### ✅ Demo Features
+- **Mock Authentication** - Any email/password combination will successfully log you in
+- **Mock Data Fallbacks** - All pages display realistic data even when backend APIs fail
 - **Full admin permissions** granted to all users
 - **No Supabase connectivity required** - perfect for demonstrations
 - **Instant login** with simulated API delays for realistic feel
+- **Complete data coverage** - Projects, resources, dashboard stats, time entries, and more
 
 ### 🔑 Demo Login Instructions
 
@@ -44,6 +46,13 @@ The application is now running in **Demo Mode** with mock authentication that ac
 - Creates mock session and user data
 - Provides all required permissions
 - Maintains session state during navigation
+
+**Mock Data Fallback System:**
+- Automatically provides realistic data when backend APIs fail (500 errors)
+- Covers all major endpoints: projects, resources, dashboard KPIs, time entries
+- Maintains data consistency across components
+- Realistic sample data with proper relationships
+- Zero backend dependencies for demonstration
 
 ### 🌐 Production Deployment
 
