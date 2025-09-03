@@ -58,9 +58,32 @@ module.exports = async function handler(req, res) {
     // Include allocations if requested
     if (includeAllocations === true || includeAllocations === 'true') {
       try {
-        const allocations = await DatabaseService.getResourceAllocations();
-        responseData.allocations = allocations.filter(allocation => allocation.projectId === projectId);
-        console.log('[PROJECT_DETAIL] Added allocations:', responseData.allocations.length);
+        const [allocations, resources] = await Promise.all([
+          DatabaseService.getResourceAllocations(),
+          DatabaseService.getResources()
+        ]);
+
+        // Filter allocations for this project
+        let projectAllocations = allocations.filter(allocation => allocation.projectId === projectId);
+
+        // Enrich allocations with resource information
+        projectAllocations = projectAllocations.map(allocation => {
+          const resource = resources.find(r => r.id === allocation.resourceId);
+          return {
+            ...allocation,
+            resource: resource ? {
+              id: resource.id,
+              name: resource.name,
+              email: resource.email,
+              role: resource.role,
+              department: resource.department,
+              weeklyCapacity: resource.weeklyCapacity || 40
+            } : null
+          };
+        });
+
+        responseData.allocations = projectAllocations;
+        console.log('[PROJECT_DETAIL] Added enriched allocations:', responseData.allocations.length);
       } catch (error) {
         console.error('[PROJECT_DETAIL] Failed to fetch allocations:', error);
         responseData.allocations = [];

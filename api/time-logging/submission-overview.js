@@ -69,20 +69,31 @@ module.exports = async function handler(req, res) {
 
     // For now, return a simplified response to avoid complex week parsing
     // This will prevent the 500 error and allow the page to load
-    const submissionOverview = filteredResources.map(resource => ({
-      resource: {
-        id: resource.id,
-        name: resource.name,
-        email: resource.email,
-        department: resource.department || resource.role || 'General'
-      },
-      weeklyCapacity: resource.weeklyCapacity || 40,
-      allocatedHours: 0, // Simplified for now
-      submittedHours: 0, // Simplified for now
-      submissionStatus: 'pending', // Simplified for now
-      lastSubmissionDate: null,
-      projects: [] // Simplified for now
-    }));
+    const submissionOverview = filteredResources.map(resource => {
+      const departmentName = resource.department || resource.role || 'General';
+
+      return {
+        resource: {
+          id: resource.id,
+          name: resource.name,
+          email: resource.email,
+          department: departmentName
+        },
+        department: {
+          id: 1, // Mock department ID
+          name: departmentName,
+          isActive: true
+        },
+        submission: null, // No submission for demo
+        hasTimeEntries: false, // Simplified for now
+        weeklyCapacity: resource.weeklyCapacity || 40,
+        allocatedHours: 0, // Simplified for now
+        submittedHours: 0, // Simplified for now
+        submissionStatus: 'pending', // Simplified for now
+        lastSubmissionDate: null,
+        projects: [] // Simplified for now
+      };
+    });
 
     console.log('[TIME_LOGGING_SUBMISSION] Submission overview generated:', {
       week,

@@ -119,6 +119,11 @@ function calculateProjectKPIs(project: ProjectWithAllocations) {
   }, 0);
 
   const totalCapacity = project.allocations.reduce((total, allocation) => {
+    // Add null check for allocation.resource
+    if (!allocation.resource) {
+      console.warn('Allocation missing resource data:', allocation);
+      return total + 40; // Default capacity if resource data is missing
+    }
     return total + parseFloat(allocation.resource.weeklyCapacity || '40');
   }, 0);
 

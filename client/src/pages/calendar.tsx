@@ -198,9 +198,15 @@ export default function Calendar() {
       // Overallocated only filter
       if (overallocatedOnly) {
         const hasOverallocated = project.allocations.some(a => {
+          // Add null check for allocation resource
+          if (!a.resource) {
+            console.warn('Allocation missing resource data in calendar filter:', a);
+            return false;
+          }
+
           const resourceAllocations = allocations.filter(alloc => alloc.resourceId === a.resourceId && alloc.status === 'active');
           const totalHours = resourceAllocations.reduce((sum, alloc) => sum + parseFloat(alloc.allocatedHours), 0);
-          const capacity = parseFloat(a.resource.weeklyCapacity);
+          const capacity = parseFloat(a.resource.weeklyCapacity || '40');
           return totalHours > capacity;
         });
         if (!hasOverallocated) return false;
@@ -476,6 +482,12 @@ export default function Calendar() {
                               </Badge>
                             </div>
                             {project.allocations.map((allocation) => {
+                            // Add null check for allocation resource
+                            if (!allocation.resource) {
+                              console.warn('Allocation missing resource data in calendar display:', allocation);
+                              return null; // Skip rendering this allocation
+                            }
+
                             const isOverallocated = isResourceOverallocated(allocation.resourceId);
                             return (
                               <div key={allocation.id} className="flex items-center">

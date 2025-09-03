@@ -134,12 +134,18 @@ export default function SubmissionOverview() {
 
   // Calculate department stats
   submissionData.forEach(item => {
+    // Add null check for item.department to prevent runtime errors
+    if (!item.department || !item.department.name) {
+      console.warn('Submission item missing department data:', item);
+      return; // Skip this item if department data is missing
+    }
+
     const deptName = item.department.name;
     if (!stats.byDepartment[deptName]) {
       stats.byDepartment[deptName] = { total: 0, submitted: 0, notSubmitted: 0 };
     }
     stats.byDepartment[deptName].total++;
-    
+
     if (item.submission && item.submission.isSubmitted) {
       stats.byDepartment[deptName].submitted++;
     } else {

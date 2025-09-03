@@ -3,153 +3,72 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-const { z } = require('zod');
-const { withMiddleware, Logger } = require('../../../lib/middleware');
 const { DatabaseService } = require('../../../lib/supabase');
 
-// Input validation schema for unsubmission
-const unsubmitTimeLoggingSchema = z.object({
-  reason: z.string().optional()
-});
+// CORS helper
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
 
-// Unsubmit weekly timesheet
-const unsubmitWeeklyTimesheet = async (resourceId, week, unsubmissionData = {}) => {
+
+
+module.exports = async function handler(req, res) {
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
   try {
-    Logger.info('Unsubmitting weekly timesheet', { resourceId, week, unsubmissionData });
+    console.log('[TIME_LOGGING_UNSUBMIT] Starting time logging unsubmission request');
 
-    // Parse the week parameter (expected format: "2025-08-18" - Monday of the week)
-    const weekStartDate = new Date(week);
-    const weekEndDate = new Date(weekStartDate);
-    weekEndDate.setDate(weekEndDate.getDate() + 6);
+    // Extract resource ID and week from URL path
+    const { resourceId, week } = req.query;
+    const resourceIdNum = parseInt(resourceId);
 
-    // Verify the resource exists
-    const resources = await DatabaseService.getResources();
-    const resource = resources.find(r => r.id === resourceId);
-    
-    if (!resource) {
-      throw new Error('Resource not found');
+    if (!resourceIdNum || isNaN(resourceIdNum)) {
+      return res.status(400).json({ error: 'Invalid resource ID' });
     }
 
-    // For now, create mock unsubmission since weekly_submissions table may not be fully implemented
-    // TODO: Replace with real database operations when weekly_submissions table is available
-    
-    // Check if submission exists (mock check)
-    const submissionExists = Math.random() > 0.2; // 80% chance submission exists
-    
-    if (!submissionExists) {
-      throw new Error('No submission found for this week');
+    if (!week || typeof week !== 'string') {
+      return res.status(400).json({ error: 'Invalid week provided' });
     }
 
+    // Extract request body
+    const { reason } = req.body || {};
+
+    console.log('[TIME_LOGGING_UNSUBMIT] Unsubmission parameters:', {
+      resourceId: resourceIdNum, week, reason
+    });
+
+    // For demo purposes, create a mock unsubmission response
     const unsubmission = {
-      id: `${resourceId}-${week}-unsubmit-${Date.now()}`, // Mock ID with timestamp
-      resourceId: resourceId,
-      weekStartDate: week,
-      status: 'draft', // Changed back to draft
+      id: Date.now(), // Mock ID
+      resourceId: resourceIdNum,
+      week,
+      status: 'draft',
       unsubmittedAt: new Date().toISOString(),
-      previousStatus: 'submitted',
-      reason: unsubmissionData.reason || 'Timesheet unsubmitted for corrections',
-      resource: {
-        id: resource.id,
-        name: resource.name,
-        email: resource.email,
-        department: resource.department || resource.role || 'General'
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      reason: reason || 'Unsubmitted for corrections'
     };
 
-    // In a real implementation, this would:
-    // 1. Find the existing weekly submission record
-    // 2. Update the submission status back to 'draft'
-    // 3. Update time entry statuses back to 'draft'
-    // 4. Log the unsubmission action with reason
-    // 5. Send notifications to relevant parties
+    console.log('[TIME_LOGGING_UNSUBMIT] Unsubmission processed:', unsubmission.id);
 
-    Logger.info('Weekly timesheet unsubmitted successfully', {
-      resourceId,
-      week,
-      unsubmissionId: unsubmission.id,
-      reason: unsubmission.reason,
-      resourceName: resource.name
-    });
-
-    return unsubmission;
-  } catch (error) {
-    Logger.error('Failed to unsubmit weekly timesheet', error, { resourceId, week });
-    throw error;
-  }
-};
-
-// Main unsubmit handler
-const unsubmitHandler = async (req, res, { user, validatedData }) => {
-  const { reason } = validatedData;
-  
-  // Extract resource ID and week from URL path
-  const resourceId = parseInt(req.query.resourceId);
-  const week = req.query.week;
-  
-  if (isNaN(resourceId) || resourceId <= 0) {
-    Logger.warn('Invalid resource ID provided for unsubmission', { 
-      resourceId: req.query.resourceId, 
-      parsedId: resourceId,
-      userId: user.id,
-      url: req.url 
-    });
-    return res.status(400).json({ message: 'Invalid resource ID provided' });
-  }
-  
-  if (!week || typeof week !== 'string') {
-    Logger.warn('Invalid week provided for unsubmission', { 
-      week,
-      userId: user.id,
-      url: req.url 
-    });
-    return res.status(400).json({ message: 'Invalid week provided' });
-  }
-  
-  Logger.info('Processing weekly timesheet unsubmission', {
-    userId: user.id,
-    resourceId,
-    week,
-    reason
-  });
-  
-  try {
-    const unsubmission = await unsubmitWeeklyTimesheet(resourceId, week, {
-      reason
-    });
-    
-    Logger.info('Weekly timesheet unsubmission completed successfully', {
-      userId: user.id,
-      resourceId,
-      week,
-      unsubmissionId: unsubmission.id
-    });
-    
     return res.json(unsubmission);
-    
+
   } catch (error) {
-    Logger.error('Failed to process weekly timesheet unsubmission', error, { 
-      userId: user.id, 
-      resourceId, 
-      week 
+    console.error('[TIME_LOGGING_UNSUBMIT] Error:', error);
+
+    return res.status(500).json({
+      error: 'Failed to unsubmit weekly timesheet',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
-    
-    if (error.message === 'Resource not found') {
-      return res.status(404).json({ message: 'Resource not found' });
-    }
-    
-    if (error.message === 'No submission found for this week') {
-      return res.status(404).json({ message: 'No submission found for this week' });
-    }
-    
-    return res.status(500).json({ message: 'Failed to unsubmit weekly timesheet' });
   }
 };
-
-// Export with middleware
-module.exports = withMiddleware(unsubmitHandler, {
-  requireAuth: false, // Changed to false for demo mode
-  allowedMethods: ['POST'],
-  validateSchema: unsubmitTimeLoggingSchema
-});
