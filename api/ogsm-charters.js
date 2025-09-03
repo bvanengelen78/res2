@@ -3,30 +3,35 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-const { z } = require('zod');
-const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 const { DatabaseService } = require('./lib/supabase');
 
-// Input validation schema
-const ogsmChartersQuerySchema = z.object({
-  status: z.enum(['active', 'inactive', 'all']).optional().default('active'),
-  department: z.string().optional()
-});
+// CORS helper
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
 
-// Main OGSM charters handler
-const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
-  const { status, department } = validatedData;
+module.exports = async function handler(req, res) {
+  setCorsHeaders(res);
 
-  Logger.info('Fetching OGSM charters', {
-    userId: user.id,
-    status,
-    department
-  });
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-  // Always return a safe response, never throw errors to middleware
-  let charters = [];
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
   try {
+    console.log('[OGSM_CHARTERS] Starting OGSM charters request');
+
+    // Extract query parameters
+    const { status = 'active', department } = req.query;
+
+    console.log('[OGSM_CHARTERS] Query parameters:', { status, department });
+
     // For now, return mock OGSM charters data
     // TODO: Implement real OGSM charters from Supabase when table is available
     const mockCharters = [
@@ -108,7 +113,7 @@ const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
     ];
 
     // Apply filters
-    charters = mockCharters;
+    let charters = mockCharters;
 
     if (status !== 'all') {
       charters = charters.filter(charter => charter.status === status);
@@ -118,25 +123,17 @@ const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
       charters = charters.filter(charter => charter.department === department);
     }
 
+    console.log('[OGSM_CHARTERS] Filtered charters count:', charters.length);
+
+    return res.json(charters);
+
   } catch (error) {
-    Logger.error('Failed to fetch OGSM charters', error, { userId: user.id });
-    // Don't throw - just use empty array as fallback
-    charters = [];
+    console.error('[OGSM_CHARTERS] Error:', error);
+
+    return res.status(500).json({
+      error: 'Failed to fetch OGSM charters',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
-
-  Logger.info('OGSM charters fetched successfully', {
-    userId: user.id,
-    count: charters.length,
-    filters: { status, department }
-  });
-
-  // Always return a valid array (never throw errors to middleware)
-  return res.json(charters);
 };
-
-// Export with middleware - Demo mode: no authentication required
-module.exports = withMiddleware(ogsmChartersHandler, {
-  requireAuth: false, // Changed to false for demo mode
-  allowedMethods: ['GET'],
-  validateSchema: ogsmChartersQuerySchema
-});
