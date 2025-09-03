@@ -150,9 +150,9 @@ const resourceRelationshipsHandler = async (req, res, { user, validatedData }) =
   }
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(resourceRelationshipsHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   validateSchema: resourceRelationshipsQuerySchema
 });

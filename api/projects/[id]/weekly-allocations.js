@@ -188,7 +188,7 @@ const weeklyAllocationHandler = async (req, res, { user, validatedData }) => {
 
 // Export with middleware
 module.exports = withMiddleware(weeklyAllocationHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['PUT'],
   validateSchema: weeklyAllocationUpdateSchema
 });

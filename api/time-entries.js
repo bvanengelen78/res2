@@ -133,9 +133,9 @@ const timeEntriesHandler = async (req, res, { user, validatedData }) => {
   return res.json(timeEntries);
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(timeEntriesHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   validateSchema: timeEntriesQuerySchema
 });
