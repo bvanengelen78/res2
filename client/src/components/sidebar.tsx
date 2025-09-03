@@ -12,8 +12,7 @@ import { CalendarDiamondIcon } from "@/components/icons/calendar-diamond-icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { RBACGuard } from "@/components/auth/RBACGuard";
+// Authentication removed - public access to all navigation items
 import { MENU_ITEMS, PERMISSIONS } from "@shared/schema";
 import { useState } from "react";
 import { Logo } from "@/components/branding/Logo";
@@ -52,13 +51,9 @@ export function Sidebar() {
       const Icon = item.icon;
       const isActive = location === item.href;
 
-      // Determine access control method - convert to new RBAC format
-      const shouldRender = item.permission
-        ? true // We'll use RBACGuard with permission prop
-        : true; // For items without specific permissions, show to all authenticated users
-
+      // Public access - no permission checks required
       return (
-        <RBACGuard key={item.name} permissions={item.permission ? [item.permission] : []}>
+        <div key={item.name}>
           {isCollapsed ? (
             <TooltipProvider>
               <Tooltip>
@@ -111,7 +106,7 @@ export function Sidebar() {
               </div>
             </Link>
           )}
-        </RBACGuard>
+        </div>
       );
     });
   };

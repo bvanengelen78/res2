@@ -18,7 +18,7 @@ import { format, startOfWeek, addDays, parseISO, getWeek, getYear, isToday } fro
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+// Authentication removed - public access
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { TimeEntry, WeeklySubmission, Resource, ResourceAllocation, Project } from '@shared/schema';

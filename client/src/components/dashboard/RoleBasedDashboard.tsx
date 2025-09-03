@@ -1,5 +1,5 @@
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
-import { AdminGuard, ManagerGuard, UserGuard } from '@/components/auth/RBACGuard'
+// Authentication removed - public access
+// RBAC guards removed - public access
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,10 @@ import {
 import { Link } from 'wouter'
 
 export function RoleBasedDashboard() {
-  const { user, hasRole, hasPermission } = useSupabaseAuth()
+  // Authentication removed - public access
+  const user = { name: 'Demo User', email: 'demo@example.com' }
+  const hasRole = () => true
+  const hasPermission = () => true
 
   return (
     <div className="space-y-6">
@@ -55,8 +58,7 @@ export function RoleBasedDashboard() {
       </div>
 
       {/* Admin Dashboard */}
-      <AdminGuard>
-        <Card className="border-red-200 bg-red-50/50">
+      <Card className="border-red-200 bg-red-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-800">
               <Shield className="h-5 w-5" />
@@ -106,11 +108,9 @@ export function RoleBasedDashboard() {
             </div>
           </CardContent>
         </Card>
-      </AdminGuard>
 
       {/* Manager Dashboard */}
-      <ManagerGuard>
-        <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-blue-800">
               <BarChart3 className="h-5 w-5" />
@@ -160,11 +160,9 @@ export function RoleBasedDashboard() {
             </div>
           </CardContent>
         </Card>
-      </ManagerGuard>
 
       {/* User Dashboard */}
-      <UserGuard>
-        <Card className="border-green-200 bg-green-50/50">
+      <Card className="border-green-200 bg-green-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-800">
               <Clock className="h-5 w-5" />
@@ -214,7 +212,6 @@ export function RoleBasedDashboard() {
             </div>
           </CardContent>
         </Card>
-      </UserGuard>
 
       {/* Permission-Based Quick Actions */}
       <Card>

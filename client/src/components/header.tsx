@@ -1,4 +1,4 @@
-import { Bell, Menu, LogOut, Settings, User } from "lucide-react";
+import { Bell, Menu, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -9,18 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 export function Header() {
-  const { user, signOut } = useSupabaseAuth();
-
-  const handleLogout = async () => {
-    await signOut();
-  };
-
-  const userInitials = user?.email
-    ? user.email.split('@')[0].substring(0, 2).toUpperCase()
-    : 'U';
+  // Public access - no authentication required
+  const userInitials = 'DU'; // Demo User
 
   return (
     <header className="bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200/80 sticky top-0 z-10">
@@ -39,11 +31,11 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center space-x-2 p-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.resource?.profileImage || ""} />
+                  <AvatarImage src="" />
                   <AvatarFallback>{userInitials}</AvatarFallback>
                 </Avatar>
                 <span className="text-sm font-medium text-gray-700 hidden md:block">
-                  {user?.resource?.name || user?.email}
+                  Demo User
                 </span>
               </Button>
             </DropdownMenuTrigger>
@@ -57,11 +49,6 @@ export function Header() {
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

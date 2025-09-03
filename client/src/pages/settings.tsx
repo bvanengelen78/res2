@@ -22,7 +22,6 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { Switch } from "@/components/ui/switch";
 import { SettingsGuard } from "@/components/auth/RBACGuard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RoleManagement } from "@/components/rbac/RoleManagement";
 import { RoleManagementGuard } from "@/components/auth/RBACGuard";
 import { PERMISSIONS } from "@shared/schema";
 import "@/styles/dashboard-blue-theme.css";

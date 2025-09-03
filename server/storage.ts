@@ -1021,7 +1021,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching resources:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResources();
       }
 
       return (data || []).map(resource =>
@@ -1029,7 +1031,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getResources:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResources();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -1352,7 +1361,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching projects:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getProjects();
       }
 
       return (data || []).map(project =>
@@ -1360,7 +1371,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getProjects:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getProjects();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -1513,7 +1531,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching resource allocations:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResourceAllocations();
       }
 
       return (data || []).map(allocation =>
@@ -1521,7 +1541,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getResourceAllocations:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResourceAllocations();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -1623,7 +1650,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching resource allocations by date range:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResourceAllocationsByDateRange(startDate, endDate);
       }
 
       return (data || []).map(allocation =>
@@ -1631,7 +1660,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getResourceAllocationsByDateRange:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getResourceAllocationsByDateRange(startDate, endDate);
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 
@@ -1976,7 +2012,9 @@ export class DatabaseStorage implements IStorage {
 
       if (error) {
         console.error('Error fetching time entries:', error);
-        return [];
+        // Return mock data as fallback
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getTimeEntries();
       }
 
       return (data || []).map(entry =>
@@ -1984,7 +2022,14 @@ export class DatabaseStorage implements IStorage {
       );
     } catch (err) {
       console.error('Unexpected error in getTimeEntries:', err);
-      return [];
+      // Return mock data as fallback
+      try {
+        const { MockBusinessDataService } = await import('./mock-business-data');
+        return await MockBusinessDataService.getTimeEntries();
+      } catch (mockErr) {
+        console.error('Failed to load mock data:', mockErr);
+        return [];
+      }
     }
   }
 

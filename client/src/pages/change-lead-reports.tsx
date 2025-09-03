@@ -15,8 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { CalendarIcon, Download, TrendingUp, TrendingDown, AlertCircle, Info, Star, StarOff, Edit3, Save, X, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { PermissionGuard } from "@/components/auth/RBACGuard";
+// Authentication removed - public access
+// Permission guards removed - public access
 import "@/styles/dashboard-blue-theme.css";
 
 interface EffortSummaryData {
@@ -123,7 +123,8 @@ function ProjectTooltip({ item }: { item: EffortSummaryData }) {
 }
 
 export default function ChangeLeadReports() {
-  const { user } = useSupabaseAuth();
+  // Authentication removed - public access
+  const user = { name: 'Demo User', email: 'demo@example.com' }
   const [selectedChangeLead, setSelectedChangeLead] = useState<number | null>(null);
   // Default to current month
   const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -411,8 +412,7 @@ export default function ChangeLeadReports() {
   };
 
   return (
-    <PermissionGuard permission="change_lead_reports">
-      <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <main className="relative dashboard-blue-theme min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Enhanced Header with Gradient Background */}
       <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-800/30"></div>
@@ -768,6 +768,5 @@ export default function ChangeLeadReports() {
       )}
       </div>
     </main>
-    </PermissionGuard>
   );
 }

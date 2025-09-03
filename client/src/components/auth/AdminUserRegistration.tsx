@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress"
 import { UserPlus, AlertCircle, CheckCircle, Eye, EyeOff, Copy, RefreshCw, Shield, Key } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { authApi } from "@/lib/auth-api"
+// Authentication API removed - public access
 import { DEFAULT_ROLE_PERMISSIONS, type UserRole } from "@/types/rbac"
 import { useDepartments } from "@/hooks/useDepartments"
 import { useJobRoles } from "@/hooks/useJobRoles"
@@ -282,8 +282,11 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
 
   const createUserMutation = useMutation({
     mutationFn: async (data: UserRegistrationData) => {
-      // Use our centralized auth API for user creation
-      const response = await authApi.post('/api/rbac/create-user', {
+      // Public access - direct API call without authentication
+      const response = await fetch('/api/rbac/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
         name: `${data.firstName} ${data.lastName}`,
         email: data.email,
         role: data.role,
@@ -293,13 +296,16 @@ export function AdminUserRegistration({ onUserCreated }: AdminUserRegistrationPr
         department: data.department,
         jobRole: data.jobRole,
         capacity: data.capacity,
+        })
       })
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to create user')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create user')
       }
 
-      return response.data
+      const responseData = await response.json()
+      return responseData.data || responseData
     },
     onSuccess: async (data) => {
       const createdPassword = data.defaultPassword || generatedPassword

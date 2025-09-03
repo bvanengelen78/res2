@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+// Authentication removed - public access
 
 interface GreetingHeaderProps {
   className?: string;
@@ -12,17 +12,11 @@ interface GreetingHeaderProps {
  * Derived from existing dashboard patterns in the codebase
  */
 export const GreetingHeader: React.FC<GreetingHeaderProps> = ({ className = "" }) => {
-  const { user } = useSupabaseAuth();
+  // Authentication removed - public access
 
-  // Get user's first name for personalization
+  // Get user's first name for personalization - public access
   const getUserFirstName = () => {
-    if (user?.resource?.name) {
-      return user.resource.name.split(' ')[0];
-    }
-    if (user?.email) {
-      return user.email.split('@')[0];
-    }
-    return 'there';
+    return 'Demo User';
   };
 
   // Get current time-based greeting

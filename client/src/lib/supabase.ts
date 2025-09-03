@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Environment variables
@@ -22,18 +22,23 @@ function createSupabaseClient(): SupabaseClient {
     return supabaseInstance
   }
 
-  supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce', // Use PKCE flow for better security
-      storage: window?.localStorage, // Explicitly use localStorage
-      storageKey: 'supabase.auth.token', // Consistent storage key
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+      flowType: 'implicit',
+      storage: undefined, // Disable storage completely
     },
     global: {
       headers: {
-        'x-application-name': 'resourceflow',
+        'x-application-name': 'resourceflow-public',
+      },
+    },
+    // Disable realtime for public access
+    realtime: {
+      params: {
+        eventsPerSecond: 0,
       },
     },
   })
@@ -65,26 +70,7 @@ export type Database = {
   }
 }
 
-// Auth types
-export interface AuthUser {
-  id: string
-  email?: string
-  user_metadata?: {
-    [key: string]: any
-  }
-  app_metadata?: {
-    [key: string]: any
-  }
-}
-
-export interface AuthSession {
-  access_token: string
-  refresh_token: string
-  expires_in: number
-  expires_at?: number
-  token_type: string
-  user: AuthUser
-}
+// Public access - no authentication types needed
 
 // Export the main client as default (singleton instance)
 export default supabase

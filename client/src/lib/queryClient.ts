@@ -1,6 +1,6 @@
 import { QueryClient, QueryFunction, MutationCache, QueryCache } from "@tanstack/react-query";
 import { supabase } from "./supabase";
-import { getAuthToken } from "./auth-api";
+// Authentication API removed - public access
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -30,22 +30,11 @@ export async function apiRequest(
     console.log(`[API_REQUEST] Request body:`, body);
   }
 
-  // Get fresh authentication token
-  const token = await getAuthToken();
-
-  // Prepare headers with authentication
+  // Public access - no authentication required
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...headers,
   };
-
-  // Add Authorization header if we have a token
-  if (token) {
-    requestHeaders['Authorization'] = `Bearer ${token}`;
-    console.log(`[API_REQUEST] Added Authorization header with fresh token`);
-  } else {
-    console.warn(`[API_REQUEST] No authentication token available`);
-  }
 
   try {
     const res = await fetch(url, {
@@ -134,16 +123,8 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Get fresh authentication token
-    const token = await getAuthToken();
-
-    // Prepare headers with authentication
+    // Public access - no authentication required
     const headers: Record<string, string> = {};
-
-    // Add Authorization header if we have a token
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",

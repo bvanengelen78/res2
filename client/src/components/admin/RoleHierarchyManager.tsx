@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Shield, Plus, Edit, Trash2, Users, Key, AlertCircle, Save, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
+// Authentication removed - public access
 import { useToast } from '@/hooks/use-toast'
 import { useErrorHandler } from '@/lib/error-handler'
 import type { UserRole, PermissionType } from '@/types/rbac'

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, LogIn, AlertCircle, Building2 } from "lucide-react"
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext"
+// Authentication removed - public access
 import { AuthError } from "@supabase/supabase-js"
 
 const loginSchema = z.object({
@@ -21,7 +21,9 @@ type LoginFormData = z.infer<typeof loginSchema>
 export function SupabaseLoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { signIn, isLoading } = useSupabaseAuth()
+  // Authentication removed - public access
+  const signIn = async () => Promise.resolve()
+  const isLoading = false
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),

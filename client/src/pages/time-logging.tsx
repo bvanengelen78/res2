@@ -14,7 +14,6 @@ import { format, startOfWeek, addDays, parseISO, getWeek, getYear, isToday } fro
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { EnhancedTimeLoggingWrapper, useEnhancedSubmission } from '@/components/enhanced-time-logging-wrapper';
 import { HourEntryCell } from '@/components/ui/hour-entry-cell';
 import { cn } from '@/lib/utils';
@@ -84,7 +83,6 @@ const getWeekOptions = () => {
 };
 
 export default function TimeLogging() {
-  const { user, hasPermission, hasRole } = useSupabaseAuth();
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekStart());
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
   const [weekForm, setWeekForm] = useState<WeekForm>({ entries: {} });
@@ -167,7 +165,7 @@ export default function TimeLogging() {
   });
 
   // Check if user is admin (can select any resource) or regular user (only their own resource)
-  const isAdmin = hasRole('admin') || hasPermission('resource_management') || hasPermission('system_admin');
+  const isAdmin = true; // Public access
   const userResourceId = user?.resourceId;
 
   // Fetch resources for selection

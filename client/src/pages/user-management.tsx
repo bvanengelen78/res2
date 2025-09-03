@@ -3,7 +3,7 @@ import { EnhancedUserManagement } from '@/components/admin/EnhancedUserManagemen
 import { RoleHierarchyManager } from '@/components/admin/RoleHierarchyManager'
 import { PermissionAssignmentInterface } from '@/components/admin/PermissionAssignmentInterface'
 import { ErrorMonitoringDashboard } from '@/components/admin/ErrorMonitoringDashboard'
-import { AdminGuard } from '@/components/auth/RBACGuard'
+// RBAC guards removed - public access
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -30,31 +30,8 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        {/* Admin Guard */}
-        <AdminGuard
-          fallback={
-            <Card className="max-w-2xl mx-auto">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-red-500" />
-                  <CardTitle className="text-red-700">Access Denied</CardTitle>
-                </div>
-                <CardDescription>
-                  You don't have permission to access user management.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription>
-                    This page requires administrator privileges. Please contact your system administrator if you need access.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          }
-        >
-          <div className="space-y-8">
+        {/* Public Access - No Admin Guard Required */}
+        <div className="space-y-8">
             {/* Enhanced Header */}
             <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden rounded-xl">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-800/30"></div>
@@ -114,7 +91,6 @@ export default function UserManagementPage() {
 
             </Tabs>
           </div>
-        </AdminGuard>
       </div>
     </div>
   )

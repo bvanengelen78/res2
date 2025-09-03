@@ -12,11 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Users, Search, UserPlus, Edit, Trash2, Shield, AlertCircle, Settings, History, Key, X, Plus, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
+// Authentication removed - public access
 import { AdminUserRegistration } from '@/components/auth/AdminUserRegistration'
 import { useToast } from '@/hooks/use-toast'
 import { useErrorHandler } from '@/lib/error-handler'
-import { authApi } from '@/lib/auth-api'
+// Authentication API removed - public access
 import type { UserProfile, Role, UserRole, PermissionType } from '@/types/rbac'
 
 interface UserWithRoles extends UserProfile {
@@ -49,7 +49,8 @@ export function EnhancedUserManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [newPassword, setNewPassword] = useState('')
   const [showPasswordField, setShowPasswordField] = useState(false)
-  const { user: currentUser } = useSupabaseAuth()
+  // Authentication removed - public access
+  const currentUser = { id: 'demo-user', email: 'demo@example.com' }
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { handleError, getUserMessage, getRecoveryOptions } = useErrorHandler()

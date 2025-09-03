@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext'
+// Authentication removed - public access
 import type { PermissionType, UserRole } from '@/types/rbac'
 
 interface RBACGuardProps {
@@ -46,215 +46,114 @@ export function RBACGuard({
   fallback = null,
   requireAuth = true
 }: RBACGuardProps) {
-  const { 
-    isAuthenticated, 
-    isLoading,
-    hasPermission,
-    hasRole,
-    hasAllPermissions,
-    hasAnyPermission,
-    hasAnyRole
-  } = useSupabaseAuth()
-
-  // Don't render anything while loading
-  if (isLoading) {
-    return null
-  }
-
-  // Check authentication requirement
-  if (requireAuth && !isAuthenticated) {
-    return <>{fallback}</>
-  }
-
-  // If no permissions or roles specified, just check authentication
-  if (permissions.length === 0 && roles.length === 0) {
-    return requireAuth && !isAuthenticated ? <>{fallback}</> : <>{children}</>
-  }
-
-  // Check permissions
-  let hasRequiredPermissions = true
-  if (permissions.length > 0) {
-    hasRequiredPermissions = requireAll 
-      ? hasAllPermissions(permissions)
-      : hasAnyPermission(permissions)
-  }
-
-  // Check roles
-  let hasRequiredRoles = true
-  if (roles.length > 0) {
-    hasRequiredRoles = requireAll
-      ? roles.every(role => hasRole(role))
-      : hasAnyRole(roles)
-  }
-
-  // Render children if user has access, otherwise render fallback
-  return (hasRequiredPermissions && hasRequiredRoles) ? <>{children}</> : <>{fallback}</>
+  // Public access - always render children without permission checks
+  return <>{children}</>
 }
 
-// Convenience components for common patterns
+// Convenience components for common patterns - Public Access Version
 
 /**
- * Show content only for authenticated users
+ * Show content for all users (public access)
  */
 export function AuthGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <RBACGuard requireAuth fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content only for admin users
+ * Show content for all users (public access)
  */
 export function AdminGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <RBACGuard roles={['admin']} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content for admin and manager users
+ * Show content for all users (public access)
  */
 export function ManagerGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <RBACGuard roles={['admin', 'manager']} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content for all authenticated users (admin, manager, user)
+ * Show content for all users (public access)
  */
 export function UserGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <RBACGuard roles={['admin', 'manager', 'user']} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content only for users with specific permission
+ * Show content for all users (public access)
  */
-export function PermissionGuard({ 
-  children, 
-  permission, 
-  fallback 
-}: { 
+export function PermissionGuard({
+  children,
+  permission,
+  fallback
+}: {
   children: ReactNode
   permission: PermissionType
-  fallback?: ReactNode 
+  fallback?: ReactNode
 }) {
-  return (
-    <RBACGuard permissions={[permission]} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content for users with any of the specified permissions
+ * Show content for all users (public access)
  */
-export function AnyPermissionGuard({ 
-  children, 
-  permissions, 
-  fallback 
-}: { 
+export function AnyPermissionGuard({
+  children,
+  permissions,
+  fallback
+}: {
   children: ReactNode
   permissions: PermissionType[]
-  fallback?: ReactNode 
+  fallback?: ReactNode
 }) {
-  return (
-    <RBACGuard permissions={permissions} requireAll={false} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
 /**
- * Show content for users with all of the specified permissions
+ * Show content for all users (public access)
  */
-export function AllPermissionsGuard({ 
-  children, 
-  permissions, 
-  fallback 
-}: { 
+export function AllPermissionsGuard({
+  children,
+  permissions,
+  fallback
+}: {
   children: ReactNode
   permissions: PermissionType[]
-  fallback?: ReactNode 
+  fallback?: ReactNode
 }) {
-  return (
-    <RBACGuard permissions={permissions} requireAll={true} fallback={fallback}>
-      {children}
-    </RBACGuard>
-  )
+  return <>{children}</>
 }
 
-// Specific feature guards
+// Specific feature guards - Public Access Version
 export function TimeLoggingGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="time_logging" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function ReportsGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <AnyPermissionGuard permissions={['reports', 'change_lead_reports']} fallback={fallback}>
-      {children}
-    </AnyPermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function ResourceManagementGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="resource_management" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function ProjectManagementGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="project_management" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function UserManagementGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="user_management" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function SettingsGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="settings" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function SystemAdminGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="system_admin" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }
 
 export function RoleManagementGuard({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  return (
-    <PermissionGuard permission="role_management" fallback={fallback}>
-      {children}
-    </PermissionGuard>
-  )
+  return <>{children}</>
 }

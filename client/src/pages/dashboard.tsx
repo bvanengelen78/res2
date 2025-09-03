@@ -9,12 +9,10 @@ import { ProjectForm } from "@/components/project-form";
 import { RoleSkillHeatmap } from "@/components/role-skill-heatmap";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { DashboardErrorBoundary } from "@/components/dashboard-error-boundary";
-import { PermissionGuard } from "@/components/auth/RBACGuard";
 import { RoleBasedDashboard } from "@/components/dashboard/RoleBasedDashboard";
 import { ChangeAllocationReportModal } from "@/components/change-allocation-report-modal";
 import { GamifiedKpiTiles } from "@/components/gamified-kpi-tiles";
 import { Badge } from "@/components/ui/badge";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { getPeriodInfo, getPeriodLabel, getPeriodComparisonText, type PeriodFilter } from "@/lib/period-utils";
 import { useState, useEffect, useCallback } from "react";
 import { Sparkles, BarChart3, AlertTriangle, Users, Clock, TrendingUp, Zap, Filter } from "lucide-react";
@@ -230,7 +228,7 @@ export default function Dashboard() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [animationConfig, setAnimationConfig] = useState(() => applyOptimizedAnimations());
-  const { user } = useSupabaseAuth();
+  // Authentication removed - public access
 
   // Use shared period utility function
 
@@ -289,15 +287,9 @@ export default function Dashboard() {
 
   // Use shared period label utility function
 
-  // Get user's first name for personalization
+  // Get user's first name for personalization - public access
   const getUserFirstName = () => {
-    if (user?.resource?.name) {
-      return user.resource.name.split(' ')[0];
-    }
-    if (user?.email) {
-      return user.email.split('@')[0];
-    }
-    return 'there';
+    return 'Demo User';
   };
 
   // Get current time-based greeting
@@ -441,7 +433,7 @@ export default function Dashboard() {
   }
 
   return (
-    <PermissionGuard permission="dashboard">
+    <div>
       <main className="relative dashboard-blue-theme">
       {/* Enhanced Header with Gradient Background */}
       <div className={`relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white overflow-hidden ${
@@ -726,6 +718,6 @@ export default function Dashboard() {
       />
 
     </main>
-    </PermissionGuard>
+    </div>
   );
 }
