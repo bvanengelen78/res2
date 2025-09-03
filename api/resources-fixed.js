@@ -48,7 +48,9 @@ module.exports = async function handler(req, res) {
     }
 
     if (status !== 'all') {
-      resources = resources.filter(resource => resource.status === status);
+      // Resources use isActive field instead of status field
+      const isActiveFilter = status === 'active' ? true : false;
+      resources = resources.filter(resource => resource.isActive === isActiveFilter);
       console.log('[RESOURCES] After status filter:', resources.length);
     }
 
