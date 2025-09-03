@@ -460,9 +460,9 @@ const projectMainHandler = async (req, res, context) => {
   }
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(projectMainHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET', 'PUT', 'DELETE'],
   validateSchema: projectDetailQuerySchema // Only for GET requests
 });

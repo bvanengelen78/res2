@@ -89,9 +89,9 @@ const departmentsHandler = async (req, res, { user, validatedData }) => {
   return res.json(departments);
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(departmentsHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   validateSchema: departmentsQuerySchema
 });

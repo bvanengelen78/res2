@@ -217,6 +217,6 @@ const allocationMainHandler = async (req, res, context) => {
 
 // Export with middleware
 module.exports = withMiddleware(allocationMainHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['PUT', 'DELETE']
 });

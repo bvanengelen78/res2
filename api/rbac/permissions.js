@@ -44,7 +44,7 @@ const permissionsHandler = async (req, res, { user }) => {
 };
 
 module.exports = withMiddleware(permissionsHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   requiredPermissions: ['user_management'],
 });

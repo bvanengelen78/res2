@@ -134,9 +134,9 @@ const ogsmChartersHandler = async (req, res, { user, validatedData }) => {
   return res.json(charters);
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(ogsmChartersHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   validateSchema: ogsmChartersQuerySchema
 });

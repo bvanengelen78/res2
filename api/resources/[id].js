@@ -380,9 +380,9 @@ const resourceMainHandler = async (req, res, context) => {
   }
 };
 
-// Export with middleware
+// Export with middleware - Demo mode: no authentication required
 module.exports = withMiddleware(resourceMainHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET', 'PUT', 'DELETE'],
   validateSchema: resourceDetailQuerySchema // Only for GET requests
 });
