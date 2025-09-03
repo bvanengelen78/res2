@@ -9,32 +9,8 @@
  * Priority: Real Supabase data > Mock fallback data
  */
 
-const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// CORS helper
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
-
-// Auth helper
-function verifyToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  try {
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded.user;
-  } catch (error) {
-    return null;
-  }
-}
+const { z } = require('zod');
+const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('./lib/middleware');
 
 // Dashboard handlers
 async function handleGetKPIs(req, res) {
@@ -390,29 +366,22 @@ async function handleGetGamifiedMetrics(req, res) {
   }
 }
 
+// Input validation schema
+const dashboardQuerySchema = z.object({
+  endpoint: z.string().optional().default('kpis')
+});
+
 // Main dashboard handler that routes to sub-endpoints
-module.exports = async function handler(req, res) {
-  setCorsHeaders(res);
+const dashboardHandler = async (req, res, { user, validatedData }) => {
+  const { endpoint } = validatedData;
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  // Verify authentication
-  const user = verifyToken(req);
-  if (!user) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
+  Logger.info('Dashboard API request', {
+    userId: user.id,
+    endpoint,
+    method: req.method
+  });
 
   try {
-    if (req.method !== 'GET') {
-      return res.status(405).json({ message: 'Method not allowed' });
-    }
-
-    // Parse the URL to determine the endpoint
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const endpoint = url.searchParams.get('endpoint');
 
     // Route to appropriate handler based on endpoint parameter
     // IMPORTANT: Delegate to real Supabase-integrated endpoints when available
@@ -469,7 +438,19 @@ module.exports = async function handler(req, res) {
         });
     }
   } catch (error) {
-    console.error('Dashboard API error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    Logger.error('Dashboard API error', {
+      userId: user.id,
+      endpoint,
+      error: error.message,
+      stack: error.stack
+    });
+    return createErrorResponse(res, 500, 'Internal server error');
   }
 };
+
+// Export with middleware - Demo mode: no authentication required
+module.exports = withMiddleware(dashboardHandler, {
+  requireAuth: false, // Changed to false for demo mode
+  allowedMethods: ['GET'],
+  validateSchema: dashboardQuerySchema
+});
