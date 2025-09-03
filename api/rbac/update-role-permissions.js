@@ -65,7 +65,7 @@ const updateRolePermissionsHandler = async (req, res, { user, validatedData }) =
 
 // Export with middleware
 module.exports = withMiddleware(updateRolePermissionsHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['POST'],
   validateSchema: updateRolePermissionsSchema,
   rateLimit: {

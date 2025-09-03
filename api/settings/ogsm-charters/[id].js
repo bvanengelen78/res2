@@ -203,7 +203,7 @@ const handleDeleteOgsmCharter = async (req, res, user, charterId) => {
 module.exports = withMiddleware(
   ogsmCharterByIdHandler,
   {
-    requireAuth: true,
+    requireAuth: false, // Changed to false for demo mode
     validateInput: {
       PUT: ogsmCharterUpdateSchema
     }

@@ -168,7 +168,7 @@ const handleCreateDepartment = async (req, res, user, validatedData) => {
 module.exports = withMiddleware(
   departmentsHandler,
   {
-    requireAuth: true,
+    requireAuth: false, // Changed to false for demo mode
     validateInput: {
       POST: departmentCreateSchema
     }

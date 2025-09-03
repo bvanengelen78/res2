@@ -172,7 +172,7 @@ const assignRoleHandler = async (req, res, { user, validatedData }) => {
 
 // Export with middleware
 module.exports = withMiddleware(assignRoleHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['POST'],
   validateSchema: assignRoleSchema,
   requiredPermissions: ['role_management'],

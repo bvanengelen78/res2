@@ -198,7 +198,7 @@ const userProfilesHandler = async (req, res, { user }) => {
 
 // Export with middleware
 module.exports = withMiddleware(userProfilesHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   requiredPermissions: ['user_management'],
   rateLimit: {

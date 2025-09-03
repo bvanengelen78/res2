@@ -219,7 +219,7 @@ const handleDeleteDepartment = async (req, res, user, departmentId) => {
 module.exports = withMiddleware(
   departmentByIdHandler,
   {
-    requireAuth: true,
+    requireAuth: false, // Changed to false for demo mode
     validateInput: {
       PUT: departmentUpdateSchema
     }

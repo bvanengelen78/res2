@@ -93,7 +93,7 @@ const updatePasswordHandler = async (req, res, { user, validatedData }) => {
 
 // Export with middleware
 module.exports = withMiddleware(updatePasswordHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   requirePermissions: ['user_management'], // Admin permission required
   allowedMethods: ['POST'],
   validateSchema: {

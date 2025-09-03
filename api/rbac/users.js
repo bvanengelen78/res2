@@ -155,7 +155,7 @@ const rbacUsersHandler = async (req, res, { user }) => {
 
 // Export with middleware
 module.exports = withMiddleware(rbacUsersHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET'],
   validateSchema: null,
   rateLimit: {

@@ -164,7 +164,7 @@ const handleUpdateNotificationSetting = async (req, res, user, settingId, valida
 module.exports = withMiddleware(
   notificationByIdHandler,
   {
-    requireAuth: true,
+    requireAuth: false, // Changed to false for demo mode
     validateInput: {
       PUT: notificationUpdateSchema
     }

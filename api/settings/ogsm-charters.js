@@ -204,7 +204,7 @@ const handleCreateOgsmCharter = async (req, res, user, validatedData) => {
 module.exports = withMiddleware(
   ogsmChartersHandler,
   {
-    requireAuth: true,
+    requireAuth: false, // Changed to false for demo mode
     validateInput: {
       POST: ogsmCharterCreateSchema
     }

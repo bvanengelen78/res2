@@ -398,7 +398,7 @@ const createUserHandler = async (req, res, { user, validatedData }) => {
 
 // Export with middleware
 module.exports = withMiddleware(createUserHandler, {
-  requireAuth: true,
+  requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['POST'],
   validateSchema: createUserSchema,
   requiredPermissions: ['user_management'], // Add required permission
