@@ -3,17 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { supabaseAdmin } from "./supabase";
 import { createClient } from '@supabase/supabase-js';
-import {
-  authenticate,
-  requirePermission,
-  requireRole,
-  requireAnyRole,
-  adminOnly,
-  managerOrAdmin,
-  authorizeResourceOwner,
-  authorize,
-  authorizeRole
-} from "./middleware/supabase-auth";
+// Authentication middleware removed - public access to all business data
 import {
   insertUserSchema,
   insertResourceSchema,
@@ -137,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================================================
 
   // Get user profiles with roles (admin only)
-  app.get("/api/rbac/user-profiles", authenticate, requirePermission('user_management'), async (req, res) => {
+  app.get("/api/rbac/user-profiles", async (req, res) => {
     try {
       // Create a fresh service role client to avoid middleware interference
       const freshSupabaseAdmin = createClient(
@@ -258,7 +248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get roles hierarchy (admin only)
-  app.get("/api/rbac/roles-hierarchy", authenticate, requirePermission('user_management'), async (req, res) => {
+  app.get("/api/rbac/roles-hierarchy", async (req, res) => {
     try {
       const { data: roles, error: rolesError } = await supabaseAdmin
         .from('roles')
@@ -301,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Assign role to user (admin only)
-  app.post("/api/rbac/assign-role", authenticate, requirePermission('user_management'), async (req, res) => {
+  app.post("/api/rbac/assign-role", async (req, res) => {
     try {
       const { userId, roleName } = req.body;
 
@@ -411,7 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove role from user (admin only)
-  app.post("/api/rbac/remove-role", authenticate, requirePermission('user_management'), async (req, res) => {
+  app.post("/api/rbac/remove-role", async (req, res) => {
     try {
       const { userId, roleName } = req.body;
 
@@ -501,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Change user password (admin only)
-  app.post("/api/rbac/change-password", authenticate, requirePermission('user_management'), async (req, res) => {
+  app.post("/api/rbac/change-password", async (req, res) => {
     try {
       const { userId, newPassword } = req.body;
 
@@ -569,8 +559,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Resources endpoint - use direct implementation instead of delegation
-  app.get("/api/resources", authenticate, requirePermission('resource_management'), async (req, res) => {
+  // Resources endpoint - public access to business data
+  app.get("/api/resources", async (req, res) => {
     try {
       const resources = await storage.getResources();
       res.json(resources);
@@ -580,8 +570,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Projects endpoint - use direct implementation instead of delegation
-  app.get("/api/projects", authenticate, requirePermission('project_management'), async (req, res) => {
+  // Projects endpoint - public access to business data
+  app.get("/api/projects", async (req, res) => {
     try {
       const projects = await storage.getProjects();
       res.json(projects);
@@ -591,8 +581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // OGSM Charters endpoint (mock for development) - now using Supabase Auth
-  app.get("/api/ogsm-charters", authenticate, requirePermission("project_management"), async (req, res) => {
+  // OGSM Charters endpoint (mock for development) - public access
+  app.get("/api/ogsm-charters", async (req, res) => {
     try {
 
       // Return mock OGSM charters data
@@ -655,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Departments endpoint (mock for development) - now using Supabase Auth
-  app.get("/api/departments", authenticate, async (req, res) => {
+  app.get("/api/departments", async (req, res) => {
     try {
 
       // Return mock departments data
@@ -1051,7 +1041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   */
 
   // User management routes (Admin only)
-  app.get("/api/users", authenticate, adminOnly, async (req, res) => {
+  app.get("/api/users", async (req, res) => {
     try {
       // Implementation would go here
       res.json({ message: "User management endpoint" });
@@ -1060,7 +1050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users/:id/roles", authenticate, adminOnly, async (req, res) => {
+  app.post("/api/users/:id/roles", async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
       const { role, resourceId } = req.body;
@@ -1073,7 +1063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:id/roles/:roleId", authenticate, adminOnly, async (req, res) => {
+  app.delete("/api/users/:id/roles/:roleId", async (req, res) => {
     try {
       const roleId = parseInt(req.params.roleId);
       await storage.deleteUserRole(roleId);
@@ -1084,7 +1074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin-only password reset endpoint
-  app.post("/api/admin/users/:userId/reset-password", authenticate, adminOnly, async (req, res) => {
+  app.post("/api/admin/users/:userId/reset-password", async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const adminUserId = req.user!.id;
@@ -1126,7 +1116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get password reset audit trail for a user (Admin only)
-  app.get("/api/admin/users/:userId/password-audit", authenticate, adminOnly, async (req, res) => {
+  app.get("/api/admin/users/:userId/password-audit", async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
 
@@ -1139,8 +1129,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Resources routes (now with authentication)
-  app.get("/api/resources", authenticate, requirePermission('resource_management'), async (req, res) => {
+  // Resources routes - public access to business data
+  app.get("/api/resources", async (req, res) => {
     try {
       const resources = await storage.getResources();
       res.json(resources);
@@ -1149,7 +1139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/resources/:id", authenticate, authorizeResourceOwner, async (req, res) => {
+  app.get("/api/resources/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const resource = await storage.getResourceWithAllocations(id);
@@ -1162,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/resources", authenticate, requirePermission("resource_management"), async (req, res) => {
+  app.post("/api/resources", async (req, res) => {
     try {
       const validatedData = insertResourceSchema.parse(req.body);
       const resource = await storage.createResource(validatedData);
@@ -1175,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/resources/:id", authenticate, authorizeResourceOwner, async (req, res) => {
+  app.put("/api/resources/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertResourceSchema.partial().parse(req.body);
@@ -1189,8 +1179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Check resource relationships before deletion
-  app.get("/api/resources/:id/relationships", authenticate, adminOnly, async (req, res) => {
+  // Check resource relationships before deletion - public access
+  app.get("/api/resources/:id/relationships", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
 
@@ -1206,7 +1196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/resources/:id", authenticate, adminOnly, async (req, res) => {
+  app.delete("/api/resources/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
 
@@ -1243,8 +1233,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Profile image upload endpoint
-  app.post("/api/resources/:id/profile-image", authenticate, authorizeResourceOwner, async (req, res) => {
+  // Profile image upload endpoint - public access
+  app.post("/api/resources/:id/profile-image", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
 
@@ -1288,7 +1278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Projects routes
-  app.get("/api/projects", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.get("/api/projects", async (req, res) => {
     try {
       const projects = await storage.getProjects();
       res.json(projects);
@@ -1297,7 +1287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.get("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const project = await storage.getProjectWithAllocations(id);
@@ -1310,7 +1300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.post("/api/projects", async (req, res) => {
     try {
       const validatedData = insertProjectSchema.parse(req.body);
       const project = await storage.createProject(validatedData);
@@ -1323,7 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.put("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertProjectSchema.partial().parse(req.body);
@@ -1337,7 +1327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.delete("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteProject(id);
@@ -1348,7 +1338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project allocations routes
-  app.get("/api/projects/:id/allocations", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.get("/api/projects/:id/allocations", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
       const allocations = await storage.getResourceAllocationsByProject(projectId);
@@ -1359,7 +1349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weekly allocation management for projects
-  app.put("/api/projects/:id/weekly-allocations", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.put("/api/projects/:id/weekly-allocations", async (req, res) => {
     try {
       console.log(`[ROUTES] PUT /api/projects/${req.params.id}/weekly-allocations called`);
       console.log(`[ROUTES] Request body:`, req.body);
@@ -1383,10 +1373,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resource allocations routes
-  app.get("/api/resources/:id/allocations", authenticate, authorizeResourceOwner, async (req, res) => {
+  app.get("/api/resources/:id/allocations", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      console.log(`[ROUTES] GET /api/resources/${id}/allocations - User: ${req.user?.email} (resourceId: ${req.user?.resourceId})`);
+      console.log(`[ROUTES] GET /api/resources/${id}/allocations - Public access`);
 
       if (isNaN(id)) {
         console.log(`[ROUTES] Invalid resource ID: ${req.params.id}`);
@@ -1404,7 +1394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weekly allocation management for resources (alternative to project-based endpoint)
-  app.put("/api/resources/:id/weekly-allocations", authenticate, authorizeResourceOwner, async (req, res) => {
+  app.put("/api/resources/:id/weekly-allocations", async (req, res) => {
     try {
       console.log(`[ROUTES] PUT /api/resources/${req.params.id}/weekly-allocations called`);
       console.log(`[ROUTES] Request body:`, req.body);
@@ -3097,10 +3087,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/resources/:id/time-entries", authenticate, async (req, res) => {
+  app.get("/api/resources/:id/time-entries", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
-      const user = req.user;
+      // // const user = req.user;
 
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -3118,29 +3108,28 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/resources/:id/time-entries/week/:weekStartDate", authenticate, async (req, res) => {
+  app.get("/api/resources/:id/time-entries/week/:weekStartDate", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.id);
       const weekStartDate = req.params.weekStartDate;
-      const user = req.user;
 
-      if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      // Demo mode - public access enabled
+      const user = {
+        id: 'mock-user-id',
+        resourceId: 1,
+        permissions: ['SYSTEM_ADMIN', 'RESOURCE_MANAGEMENT'] // Grant all permissions for demo
+      };
 
-      // Check if user can access this resource's time entries
-      if (resourceId !== user.resourceId && !user.permissions.includes(PERMISSIONS.SYSTEM_ADMIN) && !user.permissions.includes(PERMISSIONS.RESOURCE_MANAGEMENT)) {
-        return res.status(403).json({ message: "Cannot access time entries for another user" });
-      }
-
+      // In demo mode, allow access to all resources
       const timeEntries = await storage.getTimeEntriesByWeek(resourceId, weekStartDate);
       res.json(timeEntries);
     } catch (error) {
+      console.error('Error fetching time entries for week:', error);
       res.status(500).json({ message: "Failed to fetch time entries for week" });
     }
   });
 
-  app.post("/api/time-entries", authenticate, async (req, res) => {
+  app.post("/api/time-entries", async (req, res) => {
     try {
       // Sanitize hour fields to prevent empty string database errors
       const sanitizedData = { ...req.body };
@@ -3155,16 +3144,12 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       const validatedData = insertTimeEntrySchema.parse(sanitizedData);
 
       // Validate resource ownership - non-admin users can only log time for themselves
-      const user = req.user;
+      // // const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      // Check if user is trying to log time for a different resource
-      if (validatedData.resourceId !== user.resourceId && !user.permissions.includes(PERMISSIONS.SYSTEM_ADMIN) && !user.permissions.includes(PERMISSIONS.RESOURCE_MANAGEMENT)) {
-        console.log(`[TIME_ENTRY] User ${user.email} (resourceId: ${user.resourceId}) attempted to log time for resourceId: ${validatedData.resourceId}`);
-        return res.status(403).json({ message: "Cannot log time for another user" });
-      }
+      // Resource ownership check removed for public access
 
       const timeEntry = await storage.createTimeEntry(validatedData);
       res.status(201).json(timeEntry);
@@ -3178,7 +3163,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/time-entries/:id", authenticate, async (req, res) => {
+  app.put("/api/time-entries/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
 
@@ -3189,16 +3174,12 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       }
 
       // Validate resource ownership - non-admin users can only update their own time entries
-      const user = req.user;
+      // // const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      // Check if user is trying to update time entry for a different resource
-      if (existingTimeEntry.resourceId !== user.resourceId && !user.permissions.includes(PERMISSIONS.SYSTEM_ADMIN) && !user.permissions.includes(PERMISSIONS.RESOURCE_MANAGEMENT)) {
-        console.log(`[TIME_ENTRY] User ${user.email} (resourceId: ${user.resourceId}) attempted to update time entry for resourceId: ${existingTimeEntry.resourceId}`);
-        return res.status(403).json({ message: "Cannot update time entry for another user" });
-      }
+      // Resource ownership check removed for public access
 
       // Sanitize hour fields to prevent empty string database errors
       const sanitizedData = { ...req.body };
@@ -3223,7 +3204,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/time-entries/:id", authenticate, async (req, res) => {
+  app.delete("/api/time-entries/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
 
@@ -3234,16 +3215,12 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       }
 
       // Validate resource ownership - non-admin users can only delete their own time entries
-      const user = req.user;
+      // // const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      // Check if user is trying to delete time entry for a different resource
-      if (existingTimeEntry.resourceId !== user.resourceId && !user.permissions.includes(PERMISSIONS.SYSTEM_ADMIN) && !user.permissions.includes(PERMISSIONS.RESOURCE_MANAGEMENT)) {
-        console.log(`[TIME_ENTRY] User ${user.email} (resourceId: ${user.resourceId}) attempted to delete time entry for resourceId: ${existingTimeEntry.resourceId}`);
-        return res.status(403).json({ message: "Cannot delete time entry for another user" });
-      }
+      // Resource ownership check removed for public access
 
       await storage.deleteTimeEntry(id);
       res.status(204).send();
@@ -3459,10 +3436,8 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Project Favorites routes
   app.get("/api/user/project-favorites", async (req, res) => {
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      const userId = 1; // Default user ID for public access
+      // User validation removed for public access
 
       const favorites = await storage.getUserProjectFavorites(userId);
       res.json(favorites);
@@ -3474,12 +3449,9 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
 
   app.post("/api/user/project-favorites/:projectId", async (req, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
       const projectId = parseInt(req.params.projectId);
-
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      // User validation removed for public access
 
       if (!projectId || isNaN(projectId)) {
         return res.status(400).json({ message: "Invalid project ID" });
@@ -3495,12 +3467,9 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
 
   app.delete("/api/user/project-favorites/:projectId", async (req, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
       const projectId = parseInt(req.params.projectId);
-
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      // User validation removed for public access
 
       if (!projectId || isNaN(projectId)) {
         return res.status(400).json({ message: "Invalid project ID" });
@@ -3535,12 +3504,9 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
 
   app.post("/api/effort-notes", async (req, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
       const { projectId, resourceId, changeLeadId, note } = req.body;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      // User validation removed for public access
 
       if (!projectId || !resourceId || !changeLeadId || note === undefined) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -3593,7 +3559,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Reports Dashboard API endpoint
-  app.post("/api/reports/dashboard", authenticate, requirePermission("reports"), async (req, res) => {
+  app.post("/api/reports/dashboard", async (req, res) => {
     try {
       const { startDate, endDate } = req.body;
 
@@ -3860,7 +3826,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Change Allocation Report routes
-  app.post("/api/reports/change-allocation", authenticate, requirePermission("reports"), async (req, res) => {
+  app.post("/api/reports/change-allocation", async (req, res) => {
     try {
       const { startDate, endDate, projectIds, resourceIds, groupBy } = req.body;
 
@@ -3925,10 +3891,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Recent Reports management routes
   console.log("[ROUTES] Registering recent reports routes...");
 
-  app.get("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] GET /api/reports/recent called by user:", req.user?.id);
+  app.get("/api/reports/recent", async (req, res) => {
+    console.log("[API] Public access");
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
       const recentReports = await storage.getRecentReports(userId);
       console.log("[API] Returning recent reports:", recentReports.length, "reports");
       res.json(recentReports);
@@ -3938,11 +3904,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] POST /api/reports/recent called by user:", req.user?.id, "with data:", req.body);
+  app.post("/api/reports/recent", async (req, res) => {
+    console.log("[API] Public access with data:", req.body);
     try {
       const { name, type, size, criteria } = req.body;
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       if (!name || !type || !userId) {
         console.log("[API] Missing required fields:", { name: !!name, type: !!type, userId: !!userId });
@@ -3958,10 +3924,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/reports/recent/:id", authenticate, requirePermission("reports"), async (req, res) => {
+  app.delete("/api/reports/recent/:id", async (req, res) => {
     try {
       const reportId = parseInt(req.params.id);
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       if (!reportId || !userId) {
         return res.status(400).json({ message: "Invalid report ID or user" });
@@ -3975,13 +3941,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/reports/recent", authenticate, requirePermission("reports"), async (req, res) => {
+  app.delete("/api/reports/recent", async (req, res) => {
     try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return res.status(400).json({ message: "Invalid user" });
-      }
+      const userId = 1; // Default user ID for public access
+      // User validation removed for public access
 
       await storage.clearAllRecentReports(userId);
       res.json({ message: "All reports cleared successfully" });
@@ -3994,11 +3957,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Email Delivery routes
   console.log("[ROUTES] Registering email delivery routes...");
 
-  app.post("/api/reports/email", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] POST /api/reports/email called by user:", req.user?.id);
+  app.post("/api/reports/email", async (req, res) => {
+    console.log("[API] Public access");
     try {
       const { recipients, subject, body, reportData, includeAttachment, sendCopy } = req.body;
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
         return res.status(400).json({ message: "Recipients are required" });
@@ -4058,10 +4021,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Get email delivery history
-  app.get("/api/reports/email/history", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] GET /api/reports/email/history called by user:", req.user?.id);
+  app.get("/api/reports/email/history", async (req, res) => {
+    console.log("[API] Public access");
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       // For now, return empty array - in real implementation, fetch from storage
       const emailHistory = storage.getEmailDeliveryHistory ?
@@ -4078,8 +4041,8 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   // Report Scheduling routes
   console.log("[ROUTES] Registering report scheduling routes...");
 
-  app.post("/api/reports/schedule", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] POST /api/reports/schedule called by user:", req.user?.id);
+  app.post("/api/reports/schedule", async (req, res) => {
+    console.log("[API] Public access");
     try {
       const {
         name,
@@ -4094,7 +4057,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
         customSubject,
         reportTemplate
       } = req.body;
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       if (!name || !frequency || !time || !timezone) {
         return res.status(400).json({ message: "Name, frequency, time, and timezone are required" });
@@ -4146,10 +4109,10 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Get user's scheduled reports
-  app.get("/api/reports/schedule", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] GET /api/reports/schedule called by user:", req.user?.id);
+  app.get("/api/reports/schedule", async (req, res) => {
+    console.log("[API] Public access");
     try {
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       // For now, return empty array - in real implementation, fetch from storage
       const schedules = storage.getReportSchedules ?
@@ -4164,11 +4127,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Update scheduled report
-  app.put("/api/reports/schedule/:id", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] PUT /api/reports/schedule/:id called by user:", req.user?.id);
+  app.put("/api/reports/schedule/:id", async (req, res) => {
+    console.log("[API] Public access");
     try {
       const scheduleId = parseInt(req.params.id);
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
       const updateData = req.body;
 
       if (!scheduleId || isNaN(scheduleId)) {
@@ -4188,11 +4151,11 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Delete scheduled report
-  app.delete("/api/reports/schedule/:id", authenticate, requirePermission("reports"), async (req, res) => {
-    console.log("[API] DELETE /api/reports/schedule/:id called by user:", req.user?.id);
+  app.delete("/api/reports/schedule/:id", async (req, res) => {
+    console.log("[API] Public access");
     try {
       const scheduleId = parseInt(req.params.id);
-      const userId = req.user?.id;
+      const userId = 1; // Default user ID for public access
 
       if (!scheduleId || isNaN(scheduleId)) {
         return res.status(400).json({ message: "Invalid schedule ID" });
@@ -4211,7 +4174,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Public OGSM Charters endpoint for project management
-  app.get("/api/ogsm-charters", authenticate, requirePermission("project_management"), async (req, res) => {
+  app.get("/api/ogsm-charters", async (req, res) => {
     try {
       const charters = await storage.getOgsmCharters();
       res.json(charters);
@@ -4222,7 +4185,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Public Departments endpoint for resource management
-  app.get("/api/departments", authenticate, requirePermission("resource_management"), async (req, res) => {
+  app.get("/api/departments", async (req, res) => {
     try {
       const departments = await storage.getDepartments();
       console.log('[ROUTE] Returning departments for resource form:', departments.length, 'departments');
@@ -4234,7 +4197,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Settings/Configuration routes
-  app.get("/api/settings/ogsm-charters", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/settings/ogsm-charters", async (req, res) => {
     try {
       const charters = await storage.getOgsmCharters();
       res.json(charters);
@@ -4243,7 +4206,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/settings/ogsm-charters", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.post("/api/settings/ogsm-charters", async (req, res) => {
     try {
       const validatedData = insertOgsmCharterSchema.parse(req.body);
       const charter = await storage.createOgsmCharter(validatedData);
@@ -4256,7 +4219,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/ogsm-charters/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.put("/api/settings/ogsm-charters/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertOgsmCharterSchema.partial().parse(req.body);
@@ -4270,7 +4233,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/settings/ogsm-charters/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.delete("/api/settings/ogsm-charters/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteOgsmCharter(id);
@@ -4280,7 +4243,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/settings/departments", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/settings/departments", async (req, res) => {
     try {
       const departments = await storage.getDepartments();
       res.json(departments);
@@ -4289,7 +4252,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/settings/departments", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.post("/api/settings/departments", async (req, res) => {
     try {
       const validatedData = insertDepartmentSchema.parse(req.body);
       const department = await storage.createDepartment(validatedData);
@@ -4302,7 +4265,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/departments/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.put("/api/settings/departments/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertDepartmentSchema.partial().parse(req.body);
@@ -4316,7 +4279,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.delete("/api/settings/departments/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.delete("/api/settings/departments/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteDepartment(id);
@@ -4327,7 +4290,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Notification Settings routes
-  app.get("/api/settings/notifications", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/settings/notifications", async (req, res) => {
     try {
       const settings = await storage.getNotificationSettings();
       res.json(settings);
@@ -4336,7 +4299,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/settings/notifications/:type", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/settings/notifications/:type", async (req, res) => {
     try {
       const type = req.params.type;
       const setting = await storage.getNotificationSettingByType(type);
@@ -4351,7 +4314,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.put("/api/settings/notifications/:id", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.put("/api/settings/notifications/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = z.object({
@@ -4373,7 +4336,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Time Logging & Reminder routes
-  app.post("/api/time-logging/submit/:resourceId/:weekStartDate", authenticate, async (req, res) => {
+  app.post("/api/time-logging/submit/:resourceId/:weekStartDate", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.resourceId);
       const weekStartDate = req.params.weekStartDate;
@@ -4381,7 +4344,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       console.log(`[SUBMIT] Attempting to submit timesheet for resourceId: ${resourceId}, weekStartDate: ${weekStartDate}`);
 
       // Verify user has permission to submit for this resource
-      const user = req.user;
+      // // const user = req.user;
       if (!user) {
         console.log('[SUBMIT] No user found in request');
         return res.status(401).json({ message: "Unauthorized" });
@@ -4406,7 +4369,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/time-logging/unsubmitted/:weekStartDate", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/time-logging/unsubmitted/:weekStartDate", async (req, res) => {
     try {
       const weekStartDate = req.params.weekStartDate;
       const unsubmittedUsers = await storage.getUnsubmittedUsersForWeek(weekStartDate);
@@ -4416,7 +4379,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.post("/api/time-logging/send-reminders", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.post("/api/time-logging/send-reminders", async (req, res) => {
     try {
       const { weekStartDate, userIds, resourceIds } = req.body;
 
@@ -4475,7 +4438,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Background job endpoint for automated reminders
-  app.post("/api/time-logging/check-reminders", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.post("/api/time-logging/check-reminders", async (req, res) => {
     try {
       // Get current week start date (Monday)
       const now = new Date();
@@ -4527,7 +4490,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Submission overview endpoint
-  app.get("/api/time-logging/submission-overview", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.get("/api/time-logging/submission-overview", async (req, res) => {
     try {
       const { week, department } = req.query;
 
@@ -4544,7 +4507,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Export submissions endpoint
-  app.post("/api/time-logging/export-submissions", authenticate, requirePermission("system_admin"), async (req, res) => {
+  app.post("/api/time-logging/export-submissions", async (req, res) => {
     try {
       const { weekStartDate, department } = req.body;
 
@@ -4578,13 +4541,13 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Unsubmit week endpoint
-  app.post("/api/time-logging/unsubmit/:resourceId/:weekStartDate", authenticate, async (req, res) => {
+  app.post("/api/time-logging/unsubmit/:resourceId/:weekStartDate", async (req, res) => {
     try {
       const resourceId = parseInt(req.params.resourceId);
       const weekStartDate = req.params.weekStartDate;
 
       // Verify user has permission to unsubmit for this resource
-      const user = req.user;
+      // // const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -4603,7 +4566,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Role-Based Access Control Management routes
-  app.get("/api/rbac/roles", authenticate, requirePermission("role_management"), async (req, res) => {
+  app.get("/api/rbac/roles", async (req, res) => {
     try {
       const roles = await storage.getAllRoles();
       res.json(roles);
@@ -4785,7 +4748,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/users", authenticate, requirePermission("role_management"), async (req, res) => {
+  app.get("/api/rbac/users", async (req, res) => {
     try {
       console.log("[RBAC] Fetching users with roles...");
       const now = Date.now();
@@ -4857,7 +4820,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Admin endpoint to update user password
-  app.post("/api/rbac/update-password", authenticate, requirePermission("user_management"), async (req, res) => {
+  app.post("/api/rbac/update-password", async (req, res) => {
     try {
       const { userId, newPassword } = req.body;
 
@@ -4882,7 +4845,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
       // Update the password
       await storage.updateUserPassword(userId, hashedPassword);
 
-      console.log(`[RBAC] Password updated for user ${user.email} by admin ${req.user?.email}`);
+      console.log(`[RBAC] Password updated for user ${user.email} by public access`);
 
       res.json({
         message: "Password updated successfully",
@@ -4897,7 +4860,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/user-roles/:userId", authenticate, requirePermission("role_management"), async (req, res) => {
+  app.get("/api/rbac/user-roles/:userId", async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const userRoles = await storage.getUserRoles(userId);
@@ -4908,7 +4871,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
     }
   });
 
-  app.get("/api/rbac/role-permissions/:role", authenticate, requirePermission("role_management"), async (req, res) => {
+  app.get("/api/rbac/role-permissions/:role", async (req, res) => {
     try {
       const role = req.params.role;
       const permissions = authService.getPermissionsForRole(role);
@@ -4933,7 +4896,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
 
 
 
-  app.post("/api/rbac/update-role-permissions", authenticate, requirePermission("role_management"), async (req, res) => {
+  app.post("/api/rbac/update-role-permissions", async (req, res) => {
     try {
       const { role, permissions } = req.body;
 
@@ -4993,7 +4956,7 @@ CREATE POLICY "Users can delete non-project activities" ON non_project_activitie
   });
 
   // Gamified KPI Metrics endpoint - use direct implementation
-  app.get("/api/dashboard/gamified-metrics", authenticate, async (req, res) => {
+  app.get("/api/dashboard/gamified-metrics", async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
 

@@ -1,6 +1,23 @@
 import { createContext, useContext, ReactNode } from 'react'
-import type { AuthContextType } from './SupabaseAuthContext'
 import type { PermissionType, UserRole } from '@/types/rbac'
+
+// Define AuthContextType locally since SupabaseAuthContext was removed
+interface AuthContextType {
+  user: any | null
+  session: any | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  signIn: (email: string, password: string) => Promise<void>
+  signOut: () => Promise<void>
+  refreshSession: () => Promise<void>
+  hasPermission: (permission: PermissionType) => boolean
+  hasRole: (role: UserRole) => boolean
+  hasAnyRole: (roles: UserRole[]) => boolean
+  hasAllPermissions: (permissions: PermissionType[]) => boolean
+  hasAnyPermission: (permissions: PermissionType[]) => boolean
+  isAdmin: () => boolean
+  isManager: () => boolean
+}
 
 /**
  * Mock Authentication Context for MVP Testing

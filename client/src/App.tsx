@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { MockAuthProvider } from "@/context/MockAuthContext";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import Dashboard from "@/pages/dashboard";
@@ -21,33 +21,12 @@ import ChangeEffortReport from "@/pages/change-effort-report";
 import BusinessControllerReport from "@/pages/business-controller-report";
 import SubmissionOverview from "@/pages/submission-overview";
 import Settings from "@/pages/settings";
-import LoginPage from "@/pages/login";
+// Login page removed - public access application
 import NotFound from "@/pages/not-found";
 import UserManagementPage from "@/pages/user-management";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useSupabaseAuth();
-
-  // Show loading spinner while checking authentication
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <Switch>
-        <Route path="/login" component={LoginPage} />
-        <Route component={LoginPage} />
-      </Switch>
-    );
-  }
-
-  // Show main application if authenticated
+  // Public access - no authentication required
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
@@ -81,12 +60,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SupabaseAuthProvider>
+      <MockAuthProvider>
         <TooltipProvider>
-          <Toaster />
           <Router />
+          <Toaster />
         </TooltipProvider>
-      </SupabaseAuthProvider>
+      </MockAuthProvider>
     </QueryClientProvider>
   );
 }

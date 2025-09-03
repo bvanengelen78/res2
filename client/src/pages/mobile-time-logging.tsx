@@ -26,7 +26,8 @@ import {
 import { format, startOfWeek, addDays, parseISO, getWeek, getYear, isToday, addWeeks, subWeeks } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
+// Mock authentication for demo mode
+import { useSupabaseAuth } from '@/context/MockAuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useIsDesktop } from '@/hooks/use-desktop';
 import { motion, AnimatePresence } from 'framer-motion';

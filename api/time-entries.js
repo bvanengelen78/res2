@@ -35,57 +35,87 @@ const timeEntriesHandler = async (req, res, { user, validatedData }) => {
   let timeEntries = [];
 
   try {
-    // For now, return mock time entries data
-    // TODO: Implement real time entries from Supabase when table is available
-    const mockTimeEntries = [
-      {
-        id: 1,
-        resourceId: parseInt(resourceId) || 1,
-        projectId: parseInt(projectId) || 1,
-        date: startDate || '2024-01-15',
-        hours: 8,
-        description: 'Frontend development work',
-        status: 'submitted',
-        createdAt: '2024-01-15T09:00:00.000Z',
-        updatedAt: '2024-01-15T17:00:00.000Z'
-      },
-      {
-        id: 2,
-        resourceId: parseInt(resourceId) || 1,
-        projectId: parseInt(projectId) || 2,
-        date: startDate || '2024-01-16',
-        hours: 6,
-        description: 'API integration',
-        status: 'approved',
-        createdAt: '2024-01-16T09:00:00.000Z',
-        updatedAt: '2024-01-16T15:00:00.000Z'
+    // Fetch real time entries from Supabase with fallback to mock data
+    try {
+      timeEntries = await DatabaseService.getTimeEntries();
+
+      // Apply filters to real data
+      if (resourceId) {
+        timeEntries = timeEntries.filter(entry => entry.resourceId === parseInt(resourceId));
       }
-    ];
 
-    // Apply filters
-    timeEntries = mockTimeEntries;
+      if (projectId) {
+        timeEntries = timeEntries.filter(entry => entry.projectId === parseInt(projectId));
+      }
 
-    if (resourceId) {
-      timeEntries = timeEntries.filter(entry => entry.resourceId === parseInt(resourceId));
+      if (startDate && endDate) {
+        timeEntries = timeEntries.filter(entry => {
+          const entryDate = new Date(entry.date);
+          return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
+        });
+      }
+
+      if (status !== 'all') {
+        timeEntries = timeEntries.filter(entry => entry.status === status);
+      }
+
+      // Limit results
+      timeEntries = timeEntries.slice(0, limit);
+
+    } catch (supabaseError) {
+      Logger.warn('Failed to fetch time entries from Supabase, using mock data fallback', supabaseError);
+
+      // Fallback to mock time entries data
+      const mockTimeEntries = [
+        {
+          id: 1,
+          resourceId: parseInt(resourceId) || 1,
+          projectId: parseInt(projectId) || 1,
+          date: startDate || '2024-01-15',
+          hours: 8,
+          description: 'Frontend development work',
+          status: 'submitted',
+          createdAt: '2024-01-15T09:00:00.000Z',
+          updatedAt: '2024-01-15T17:00:00.000Z'
+        },
+        {
+          id: 2,
+          resourceId: parseInt(resourceId) || 1,
+          projectId: parseInt(projectId) || 2,
+          date: startDate || '2024-01-16',
+          hours: 6,
+          description: 'API integration',
+          status: 'approved',
+          createdAt: '2024-01-16T09:00:00.000Z',
+          updatedAt: '2024-01-16T15:00:00.000Z'
+        }
+      ];
+
+      // Apply filters to mock data
+      timeEntries = mockTimeEntries;
+
+      if (resourceId) {
+        timeEntries = timeEntries.filter(entry => entry.resourceId === parseInt(resourceId));
+      }
+
+      if (projectId) {
+        timeEntries = timeEntries.filter(entry => entry.projectId === parseInt(projectId));
+      }
+
+      if (status !== 'all') {
+        timeEntries = timeEntries.filter(entry => entry.status === status);
+      }
+
+      if (startDate && endDate) {
+        timeEntries = timeEntries.filter(entry => {
+          const entryDate = new Date(entry.date);
+          return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
+        });
+      }
+
+      // Apply limit
+      timeEntries = timeEntries.slice(0, limit);
     }
-
-    if (projectId) {
-      timeEntries = timeEntries.filter(entry => entry.projectId === parseInt(projectId));
-    }
-
-    if (status !== 'all') {
-      timeEntries = timeEntries.filter(entry => entry.status === status);
-    }
-
-    if (startDate && endDate) {
-      timeEntries = timeEntries.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
-      });
-    }
-
-    // Apply limit
-    timeEntries = timeEntries.slice(0, limit);
 
   } catch (error) {
     Logger.error('Failed to fetch time entries', error, { userId: user.id });
