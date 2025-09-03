@@ -37,12 +37,55 @@ module.exports = async function handler(req, res) {
     // Fetch projects from Supabase
     let projects = await DatabaseService.getProjects();
     console.log('[PROJECTS] Raw projects count:', projects.length);
+
+    // If no projects found, provide fallback data for demo purposes
+    if (!projects || projects.length === 0) {
+      console.log('[PROJECTS] No projects found in database, using fallback data');
+      projects = [
+        {
+          id: 1,
+          name: "Demo Project Alpha",
+          description: "A demonstration project for testing purposes",
+          status: "active",
+          priority: "high",
+          startDate: "2025-01-01",
+          endDate: "2025-12-31",
+          estimatedHours: 1000,
+          isActive: true,
+          department: "Engineering",
+          type: "business",
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 2,
+          name: "Demo Project Beta",
+          description: "Another demonstration project",
+          status: "active",
+          priority: "medium",
+          startDate: "2025-02-01",
+          endDate: "2025-11-30",
+          estimatedHours: 800,
+          isActive: true,
+          department: "Product",
+          type: "change",
+          createdAt: new Date().toISOString()
+        }
+      ];
+    }
     
     // Apply filters
     if (status !== 'all') {
-      // Projects use isActive field instead of status field
-      const isActiveFilter = status === 'active' ? true : false;
-      projects = projects.filter(project => project.isActive === isActiveFilter);
+      // Debug: Log the isActive values to understand the data structure
+      console.log('[PROJECTS] Sample project isActive values:', projects.slice(0, 3).map(p => ({ id: p.id, name: p.name, isActive: p.isActive, status: p.status })));
+
+      // Projects use isActive field, but be more flexible with the filtering
+      if (status === 'active') {
+        // For active status, include projects where isActive is true OR null/undefined (default to active)
+        projects = projects.filter(project => project.isActive === true || project.isActive == null);
+      } else if (status === 'inactive') {
+        // For inactive status, only include projects explicitly marked as inactive
+        projects = projects.filter(project => project.isActive === false);
+      }
       console.log('[PROJECTS] After status filter:', projects.length);
     }
 
