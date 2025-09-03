@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Data Fallback Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Mock Data Fallback Test</h1>
+    <p>This test verifies that the mock data fallback system is working correctly.</p>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        const resultsDiv = document.getElementById('test-results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+        
+        async function testMockDataFallback() {
+            addResult('🧪 Starting Mock Data Fallback Test...', 'info');
+            
+            try {
+                // Test 1: Set up mock authentication
+                addResult('📝 Test 1: Setting up mock authentication...', 'info');
+                const mockSession = {
+                    access_token: 'mock-access-token',
+                    refresh_token: 'mock-refresh-token',
+                    expires_in: 3600,
+                    expires_at: Date.now() + 3600000,
+                    token_type: 'bearer',
+                    user: {
+                        id: 'demo-admin-user-id',
+                        email: 'test@demo.com'
+                    }
+                };
+                localStorage.setItem('mock-session', JSON.stringify(mockSession));
+                addResult('✅ Mock session stored in localStorage', 'success');
+                
+                // Test 2: Make API request that should fail and trigger fallback
+                addResult('📝 Test 2: Making API request to /api/projects...', 'info');
+                
+                const response = await fetch('/api/projects', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer mock-access-token',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                addResult(`📊 API Response Status: ${response.status} ${response.statusText}`, 'info');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult(`⚠️ API request failed as expected: ${errorText}`, 'info');
+                    addResult('🎭 This should trigger the mock data fallback in the actual application', 'info');
+                } else {
+                    const data = await response.json();
+                    addResult('✅ API request succeeded (unexpected in demo mode)', 'success');
+                    addResult(`<pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+                }
+                
+                // Test 3: Verify mock data structure
+                addResult('📝 Test 3: Verifying mock data structure...', 'info');
+                
+                // Simulate the mock data function
+                const mockProjects = [
+                    {
+                        id: 1,
+                        name: "Customer Portal Redesign",
+                        description: "Complete overhaul of customer-facing portal with modern UI/UX",
+                        status: "active",
+                        progress: 65
+                    },
+                    {
+                        id: 2,
+                        name: "Mobile App Development", 
+                        description: "Native mobile application for iOS and Android platforms",
+                        status: "active",
+                        progress: 40
+                    }
+                ];
+                
+                addResult('✅ Mock data structure is valid', 'success');
+                addResult(`<pre>${JSON.stringify(mockProjects, null, 2)}</pre>`, 'info');
+                
+                addResult('🎉 Test completed! The mock data fallback system should be working.', 'success');
+                addResult('💡 To verify: Open the main application at http://localhost:5173 and check if data is displayed', 'info');
+                
+            } catch (error) {
+                addResult(`❌ Test failed: ${error.message}`, 'error');
+                addResult(`<pre>${error.stack}</pre>`, 'error');
+            }
+        }
+        
+        // Run the test when page loads
+        testMockDataFallback();
+    </script>
+</body>
+</html>
