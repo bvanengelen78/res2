@@ -46,14 +46,20 @@ export default function Projects() {
 
 
 
-  const { data: projects = [], isLoading, error: projectsError } = useQuery({
+  const { data: projects = [], isLoading, error: projectsError, refetch: refetchProjects } = useQuery({
     queryKey: ["/api/projects"],
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  const { data: resources = [], error: resourcesError } = useQuery<Resource[]>({
+  const { data: resources = [], error: resourcesError, refetch: refetchResources } = useQuery<Resource[]>({
     queryKey: ["/api/resources"],
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
