@@ -36,16 +36,16 @@ module.exports = async function handler(req, res) {
     }
 
     // Extract query parameters
-    const { includeProjects = true, status = 'active', startDate, endDate } = req.query;
+    const { includeProjects = true, status = 'active' } = req.query;
 
     console.log('[RESOURCE_ALLOCATIONS] Query parameters:', {
-      resourceId, includeProjects, status, startDate, endDate
+      resourceId, includeProjects, status
     });
 
-    // Fetch allocations and projects
+    // Fetch allocations and projects (same pattern as project allocations endpoint)
     const [allocations, projects] = await Promise.all([
       DatabaseService.getResourceAllocations(),
-      includeProjects === true || includeProjects === 'true' ? DatabaseService.getProjects() : Promise.resolve([])
+      DatabaseService.getProjects()
     ]);
 
     // Filter allocations for this resource
@@ -56,20 +56,10 @@ module.exports = async function handler(req, res) {
       resourceAllocations = resourceAllocations.filter(allocation => allocation.status === status);
     }
 
-    // Apply date range filter if specified
-    if (startDate && endDate) {
-      resourceAllocations = resourceAllocations.filter(allocation => {
-        const allocationStart = new Date(allocation.startDate);
-        const allocationEnd = new Date(allocation.endDate);
-        const filterStart = new Date(startDate);
-        const filterEnd = new Date(endDate);
 
-        // Check if allocation overlaps with the date range
-        return allocationStart <= filterEnd && allocationEnd >= filterStart;
-      });
-    }
 
-      // Enrich allocations with project information
+    // Enrich allocations with project information (same pattern as project allocations endpoint)
+    if (includeProjects === true || includeProjects === 'true') {
       resourceAllocations = resourceAllocations.map(allocation => {
         const project = projects.find(p => p.id === allocation.projectId);
         return {
@@ -101,4 +91,4 @@ module.exports = async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
   }
-
+};

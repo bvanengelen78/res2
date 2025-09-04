@@ -24,6 +24,7 @@ import { ResourceAllocation, Project, Resource } from "@shared/schema";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { format, startOfWeek, addWeeks, getWeek, getYear } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
 import { WeeklyCapacityOverviewCards } from "./weekly-capacity-overview-cards";
 
 interface AllocationWithProject extends ResourceAllocation {
@@ -127,10 +128,33 @@ export function EnhancedProjectAllocationView({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch allocations for this resource
-  const { data: allocations = [], isLoading } = useQuery<AllocationWithProject[]>({
-    queryKey: ["/api/resources", resourceId, "allocations"],
+  // Fetch allocations for this resource using the working resource endpoint
+  const { data: resourceData, isLoading: resourceLoading } = useQuery({
+    queryKey: ["/api/resources", resourceId],
+    queryFn: () => apiRequest(`/api/resources/${resourceId}`),
   });
+
+  // Fetch projects to enrich allocation data
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+    queryKey: ["/api/projects"],
+    queryFn: () => apiRequest("/api/projects"),
+  });
+
+  // Combine loading states
+  const isLoading = resourceLoading || projectsLoading;
+
+  // Enrich allocations with project data
+  const allocations = useMemo(() => {
+    if (!resourceData?.allocations || !projects.length) return [];
+
+    return resourceData.allocations.map((allocation: any) => {
+      const project = projects.find((p: any) => p.id === allocation.projectId);
+      return {
+        ...allocation,
+        project: project || null
+      };
+    });
+  }, [resourceData?.allocations, projects]);
 
   // Initialize all projects as expanded by default (empty Set means no projects are collapsed)
   useEffect(() => {

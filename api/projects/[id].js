@@ -42,8 +42,12 @@ module.exports = async function handler(req, res) {
       projectId, includeAllocations, includeMetrics, includeTimeEntries
     });
 
-    // Fetch the specific project
-    const projects = await DatabaseService.getProjects();
+    // Fetch the specific project and resources for leadership team enrichment
+    const [projects, resources] = await Promise.all([
+      DatabaseService.getProjects(),
+      DatabaseService.getResources()
+    ]);
+
     const project = projects.find(p => p.id === projectId);
 
     if (!project) {
@@ -52,16 +56,53 @@ module.exports = async function handler(req, res) {
 
     console.log('[PROJECT_DETAIL] Found project:', project.name);
 
-    // Build response object
+    // Build response object with leadership team enrichment
     let responseData = { ...project };
+
+    // Enrich project with leadership team data
+    if (project.directorId) {
+      const director = resources.find(r => r.id === project.directorId);
+      if (director) {
+        responseData.director = {
+          id: director.id,
+          name: director.name,
+          email: director.email,
+          role: director.role,
+          department: director.department
+        };
+      }
+    }
+
+    if (project.changeLeadId) {
+      const changeLead = resources.find(r => r.id === project.changeLeadId);
+      if (changeLead) {
+        responseData.changeLead = {
+          id: changeLead.id,
+          name: changeLead.name,
+          email: changeLead.email,
+          role: changeLead.role,
+          department: changeLead.department
+        };
+      }
+    }
+
+    if (project.businessLeadId) {
+      const businessLead = resources.find(r => r.id === project.businessLeadId);
+      if (businessLead) {
+        responseData.businessLead = {
+          id: businessLead.id,
+          name: businessLead.name,
+          email: businessLead.email,
+          role: businessLead.role,
+          department: businessLead.department
+        };
+      }
+    }
 
     // Include allocations if requested
     if (includeAllocations === true || includeAllocations === 'true') {
       try {
-        const [allocations, resources] = await Promise.all([
-          DatabaseService.getResourceAllocations(),
-          DatabaseService.getResources()
-        ]);
+        const allocations = await DatabaseService.getResourceAllocations();
 
         // Filter allocations for this project
         let projectAllocations = allocations.filter(allocation => allocation.projectId === projectId);
