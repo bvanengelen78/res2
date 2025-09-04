@@ -1276,6 +1276,34 @@ const DatabaseService = {
   },
 
   // Recent Reports management methods
+  async getRecentReports(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching recent reports', { userId });
+
+      let query = supabaseAdmin
+        .from('recent_reports')
+        .select('*')
+        .order('generated_at', { ascending: false })
+        .limit(20);
+
+      // If userId is provided, filter by user
+      if (userId) {
+        query = query.eq('generated_by', userId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        Logger.error('Error fetching recent reports', error);
+        throw error;
+      }
+
+      Logger.info('Recent reports fetched successfully', { reportCount: data?.length || 0 });
+      return data || [];
+    });
+  },
+
   async createRecentReport(reportData) {
     return withRetry(async () => {
       checkSupabaseAvailable();

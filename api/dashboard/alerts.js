@@ -3,20 +3,10 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-const { z } = require('zod');
-const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { DatabaseService } = require('../lib/supabase');
 
 // Standardized effective capacity calculation constant (matches frontend)
 const DEFAULT_NON_PROJECT_HOURS = 8; // Meetings, admin, etc.
-
-// Input validation schema
-const alertsQuerySchema = z.object({
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  department: z.string().optional(),
-  severity: z.enum(['critical', 'warning', 'info', 'all']).optional().default('all')
-});
 
 // Calculate capacity alerts from real Supabase data
 const calculateCapacityAlerts = async (filters = {}) => {
@@ -24,7 +14,7 @@ const calculateCapacityAlerts = async (filters = {}) => {
     // Fetch real data from Supabase with fallback to basic methods
     const { startDate, endDate, department } = filters;
 
-    Logger.info('Starting capacity alerts calculation', { filters });
+    console.log('Starting capacity alerts calculation', { filters });
 
     const [resources, projects, allocations] = await Promise.all([
       DatabaseService.getResources(),
@@ -33,12 +23,10 @@ const calculateCapacityAlerts = async (filters = {}) => {
       DatabaseService.getResourceAllocations()
     ]);
 
-    Logger.info('Calculating capacity alerts from real data', {
+    console.log('Calculating capacity alerts from real data', {
       resourcesCount: resources.length,
       projectsCount: projects.length,
-      allocationsCount: allocations.length,
-      sampleResources: resources.slice(0, 2).map(r => ({ id: r.id, name: r.name, weeklyCapacity: r.weeklyCapacity })),
-      sampleAllocations: allocations.slice(0, 3).map(a => ({ id: a.id, resourceId: a.resourceId, allocatedHours: a.allocatedHours }))
+      allocationsCount: allocations.length
     });
 
     // Apply department filter to resources if specified
@@ -230,40 +218,31 @@ const calculateCapacityAlerts = async (filters = {}) => {
       }
     };
 
-    Logger.info('Capacity alerts calculated successfully', {
+    console.log('Capacity alerts calculated successfully', {
       totalAlerts: alertsData.summary.totalAlerts,
       critical: criticalAlerts.length,
       warning: warningAlerts.length,
       info: infoAlerts.length,
-      department: filters.department,
-      resourceUtilizationSample: resourceUtilization.slice(0, 3).map(ru => ({
-        name: ru.resource.name,
-        utilization: ru.utilization,
-        totalHours: ru.totalHours,
-        capacity: ru.resource.weeklyCapacity
-      }))
+      department: filters.department
     });
 
     return alertsData;
   } catch (error) {
-    Logger.error('Failed to calculate capacity alerts', error);
+    console.error('Failed to calculate capacity alerts', error);
     throw error;
   }
 };
 
 // Main alerts handler
-const alertsHandler = async (req, res, { user, validatedData }) => {
-  // Handle both validated data and direct query parameters for robustness
-  const queryParams = validatedData || req.query || {};
-  const { startDate, endDate, department, severity = 'all' } = queryParams;
+const alertsHandler = async (req, res) => {
+  // Handle query parameters directly
+  const { startDate, endDate, department, severity = 'all' } = req.query || {};
 
-  Logger.info('Fetching capacity alerts', {
-    userId: user?.id || 'anonymous',
+  console.log('Fetching capacity alerts', {
     department,
     severity,
     dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'current period',
-    queryParams: req.query,
-    validatedData
+    queryParams: req.query
   });
 
   try {
@@ -274,15 +253,13 @@ const alertsHandler = async (req, res, { user, validatedData }) => {
       severity
     });
 
-    Logger.info('Capacity alerts calculated successfully', {
-      userId: user?.id || 'anonymous',
+    console.log('Capacity alerts calculated successfully', {
       totalAlerts: alerts.summary.totalAlerts
     });
 
     return res.json(alerts);
   } catch (error) {
-    Logger.error('Failed to fetch capacity alerts', error, {
-      userId: user?.id || 'anonymous',
+    console.error('Failed to fetch capacity alerts', error, {
       errorMessage: error.message,
       errorStack: error.stack
     });
@@ -310,9 +287,5 @@ const alertsHandler = async (req, res, { user, validatedData }) => {
   }
 };
 
-// Export with middleware
-module.exports = withMiddleware(alertsHandler, {
-  requireAuth: false, // Changed to false for demo mode
-  allowedMethods: ['GET'],
-  validateSchema: alertsQuerySchema
-});
+// Export without middleware for simplicity
+module.exports = alertsHandler;
