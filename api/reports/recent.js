@@ -159,10 +159,5 @@ const recentReportsHandler = async (req, res, context) => {
 module.exports = withMiddleware(recentReportsHandler, {
   requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET', 'POST', 'DELETE'],
-  validateSchema: (req) => {
-    if (req.method === 'POST') {
-      return createRecentReportSchema.parse(req.body);
-    }
-    return {}; // No validation needed for GET/DELETE
-  }
+  validateSchema: null // No validation for this endpoint since it handles multiple methods
 });

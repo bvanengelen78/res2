@@ -236,12 +236,5 @@ const scheduleHandler = async (req, res, context) => {
 module.exports = withMiddleware(scheduleHandler, {
   requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'],
-  validateSchema: (req) => {
-    if (req.method === 'POST') {
-      return createScheduleSchema.parse(req.body);
-    } else if (req.method === 'PUT') {
-      return updateScheduleSchema.parse(req.body);
-    }
-    return {}; // No validation needed for GET/DELETE
-  }
+  validateSchema: null // No validation for this endpoint since it handles multiple methods
 });

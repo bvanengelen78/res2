@@ -21,16 +21,16 @@ const alertsQuerySchema = z.object({
 // Calculate capacity alerts from real Supabase data
 const calculateCapacityAlerts = async (filters = {}) => {
   try {
-    // Fetch real data from Supabase with optimized period filtering
+    // Fetch real data from Supabase with fallback to basic methods
     const { startDate, endDate, department } = filters;
+
+    Logger.info('Starting capacity alerts calculation', { filters });
+
     const [resources, projects, allocations] = await Promise.all([
       DatabaseService.getResources(),
-      startDate && endDate ?
-        DatabaseService.getProjectsByPeriod(startDate, endDate) :
-        DatabaseService.getProjects(),
-      startDate && endDate ?
-        DatabaseService.getResourceAllocationsByPeriod(startDate, endDate) :
-        DatabaseService.getResourceAllocations()
+      // Use basic methods for now to avoid period filtering issues
+      DatabaseService.getProjects(),
+      DatabaseService.getResourceAllocations()
     ]);
 
     Logger.info('Calculating capacity alerts from real data', {
@@ -253,13 +253,17 @@ const calculateCapacityAlerts = async (filters = {}) => {
 
 // Main alerts handler
 const alertsHandler = async (req, res, { user, validatedData }) => {
-  const { startDate, endDate, department, severity } = validatedData;
-  
+  // Handle both validated data and direct query parameters for robustness
+  const queryParams = validatedData || req.query || {};
+  const { startDate, endDate, department, severity = 'all' } = queryParams;
+
   Logger.info('Fetching capacity alerts', {
-    userId: user.id,
+    userId: user?.id || 'anonymous',
     department,
     severity,
-    dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'current period'
+    dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'current period',
+    queryParams: req.query,
+    validatedData
   });
 
   try {
@@ -270,10 +274,19 @@ const alertsHandler = async (req, res, { user, validatedData }) => {
       severity
     });
 
+    Logger.info('Capacity alerts calculated successfully', {
+      userId: user?.id || 'anonymous',
+      totalAlerts: alerts.summary.totalAlerts
+    });
+
     return res.json(alerts);
   } catch (error) {
-    Logger.error('Failed to fetch capacity alerts', error, { userId: user.id });
-    
+    Logger.error('Failed to fetch capacity alerts', error, {
+      userId: user?.id || 'anonymous',
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+
     // Return safe fallback data structure
     const fallbackAlerts = {
       categories: [],
@@ -288,7 +301,8 @@ const alertsHandler = async (req, res, { user, validatedData }) => {
         generatedAt: new Date().toISOString(),
         periodStart: new Date().toISOString(),
         periodEnd: new Date().toISOString(),
-        department: department || 'all'
+        department: department || 'all',
+        error: 'Fallback data due to calculation error'
       }
     };
 

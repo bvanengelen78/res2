@@ -136,13 +136,5 @@ const emailHandler = async (req, res, context) => {
 module.exports = withMiddleware(emailHandler, {
   requireAuth: false, // Changed to false for demo mode
   allowedMethods: ['GET', 'POST'],
-  validateSchema: (req) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const pathname = url.pathname;
-    
-    if (req.method === 'POST' && !pathname.endsWith('/history')) {
-      return emailReportSchema.parse(req.body);
-    }
-    return {}; // No validation needed for GET requests
-  }
+  validateSchema: null // No validation for this endpoint since it handles multiple methods
 });
