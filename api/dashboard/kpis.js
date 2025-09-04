@@ -3,10 +3,7 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-const { z } = require('zod');
-const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { DatabaseService } = require('../lib/supabase');
-const { HistoricalKpiService } = require('../lib/historical-kpi-service');
 
 // Standardized effective capacity calculation constant (matches frontend)
 const DEFAULT_NON_PROJECT_HOURS = 8; // Meetings, admin, etc.
@@ -19,12 +16,12 @@ const validateResourceData = (resources) => {
 
   return resources.filter(resource => {
     if (!resource || typeof resource !== 'object') {
-      Logger.warn('Invalid resource object found, skipping', { resource });
+      console.warn('Invalid resource object found, skipping', { resource });
       return false;
     }
 
     if (!resource.id || !resource.name) {
-      Logger.warn('Resource missing required fields (id, name), skipping', {
+      console.warn('Resource missing required fields (id, name), skipping', {
         id: resource.id,
         name: resource.name
       });
@@ -35,7 +32,7 @@ const validateResourceData = (resources) => {
     if (resource.weeklyCapacity) {
       const capacity = parseFloat(resource.weeklyCapacity);
       if (isNaN(capacity) || capacity < 0 || capacity > 168) { // Max 24h * 7 days
-        Logger.warn('Invalid weeklyCapacity, using default 40h', {
+        console.warn('Invalid weeklyCapacity, using default 40h', {
           resourceId: resource.id,
           weeklyCapacity: resource.weeklyCapacity
         });
@@ -61,12 +58,12 @@ const validateProjectData = (projects) => {
 
   return projects.filter(project => {
     if (!project || typeof project !== 'object') {
-      Logger.warn('Invalid project object found, skipping', { project });
+      console.warn('Invalid project object found, skipping', { project });
       return false;
     }
 
     if (!project.id || !project.name) {
-      Logger.warn('Project missing required fields (id, name), skipping', {
+      console.warn('Project missing required fields (id, name), skipping', {
         id: project.id,
         name: project.name
       });
@@ -75,7 +72,7 @@ const validateProjectData = (projects) => {
 
     // Validate dates
     if (project.startDate && !isValidDate(project.startDate)) {
-      Logger.warn('Invalid project startDate, skipping project', {
+      console.warn('Invalid project startDate, skipping project', {
         projectId: project.id,
         startDate: project.startDate
       });
@@ -83,7 +80,7 @@ const validateProjectData = (projects) => {
     }
 
     if (project.endDate && !isValidDate(project.endDate)) {
-      Logger.warn('Invalid project endDate, skipping project', {
+      console.warn('Invalid project endDate, skipping project', {
         projectId: project.id,
         endDate: project.endDate
       });
@@ -106,12 +103,12 @@ const validateAllocationData = (allocations) => {
 
   return allocations.filter(allocation => {
     if (!allocation || typeof allocation !== 'object') {
-      Logger.warn('Invalid allocation object found, skipping', { allocation });
+      console.warn('Invalid allocation object found, skipping', { allocation });
       return false;
     }
 
     if (!allocation.id || !allocation.resourceId || !allocation.projectId) {
-      Logger.warn('Allocation missing required fields, skipping', {
+      console.warn('Allocation missing required fields, skipping', {
         id: allocation.id,
         resourceId: allocation.resourceId,
         projectId: allocation.projectId
@@ -123,7 +120,7 @@ const validateAllocationData = (allocations) => {
     if (allocation.allocatedHours) {
       const hours = parseFloat(allocation.allocatedHours);
       if (isNaN(hours) || hours < 0 || hours > 168) { // Max 24h * 7 days
-        Logger.warn('Invalid allocatedHours, setting to 0', {
+        console.warn('Invalid allocatedHours, setting to 0', {
           allocationId: allocation.id,
           allocatedHours: allocation.allocatedHours
         });
@@ -307,16 +304,7 @@ const calculateKPIsForPeriod = (resources, projects, allocations, startDate, end
   };
 };
 
-// Input validation schema
-const kpisQuerySchema = z.object({
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  department: z.string().optional(),
-  includeTrends: z.union([
-    z.string().transform(val => val === 'true'),
-    z.boolean()
-  ]).optional().default(true)
-});
+// Removed validation schema for simplicity
 
 // Helper function to check if a date range overlaps with the filter period
 const dateRangeOverlaps = (itemStartDate, itemEndDate, filterStartDate, filterEndDate) => {
@@ -724,11 +712,10 @@ const calculateKPIs = async (filters = {}) => {
 };
 
 // Main KPIs handler
-const kpisHandler = async (req, res, { user, validatedData }) => {
-  const { startDate, endDate, department, includeTrends } = validatedData;
-  
-  Logger.info('Fetching dashboard KPIs', {
-    userId: user.id,
+const kpisHandler = async (req, res) => {
+  const { startDate, endDate, department, includeTrends } = req.query || {};
+
+  console.log('Fetching dashboard KPIs', {
     department,
     includeTrends,
     dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'all time'
@@ -744,7 +731,7 @@ const kpisHandler = async (req, res, { user, validatedData }) => {
 
     return res.json(kpis);
   } catch (error) {
-    Logger.error('Failed to fetch KPIs', error, { userId: user.id });
+    console.error('Failed to fetch KPIs', error);
     
     // Return safe fallback data structure to prevent frontend errors
     const fallbackKpis = {
@@ -787,8 +774,4 @@ const kpisHandler = async (req, res, { user, validatedData }) => {
 };
 
 // Export with middleware
-module.exports = withMiddleware(kpisHandler, {
-  requireAuth: false, // Changed to false for demo mode
-  allowedMethods: ['GET'],
-  validateSchema: kpisQuerySchema
-});
+module.exports = kpisHandler;

@@ -3,22 +3,9 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-// Load environment variables for development
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
-
-const { z } = require('zod');
-const { withMiddleware, Logger, createSuccessResponse, createErrorResponse } = require('../lib/middleware');
 const { DatabaseService } = require('../lib/supabase');
 
-// Input validation schema
-const heatmapQuerySchema = z.object({
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  department: z.string().optional(),
-  view: z.enum(['resource', 'project', 'department']).optional().default('resource')
-});
+// Removed validation schema for simplicity
 
 // Calculate heatmap data from real Supabase data
 const calculateHeatmapData = async (filters = {}) => {
@@ -30,7 +17,7 @@ const calculateHeatmapData = async (filters = {}) => {
       DatabaseService.getResourceAllocations()
     ]);
 
-    Logger.info('Calculating heatmap data from real data', {
+    console.log('Calculating heatmap data from real data', {
       resourcesCount: resources.length,
       projectsCount: projects.length,
       allocationsCount: allocations.length
@@ -146,7 +133,7 @@ const calculateHeatmapData = async (filters = {}) => {
       }
     };
 
-    Logger.info('Heatmap data calculated successfully', {
+    console.log('Heatmap data calculated successfully', {
       resourcesCount: resourceHeatmap.length,
       projectsCount: projectHeatmap.length,
       departmentsCount: departmentHeatmap.length
@@ -154,17 +141,16 @@ const calculateHeatmapData = async (filters = {}) => {
 
     return heatmapData;
   } catch (error) {
-    Logger.error('Failed to calculate heatmap data', error);
+    console.error('Failed to calculate heatmap data', error);
     throw error;
   }
 };
 
 // Main heatmap handler
-const heatmapHandler = async (req, res, { user, validatedData }) => {
-  const { startDate, endDate, department, view } = validatedData;
-  
-  Logger.info('Fetching dashboard heatmap', {
-    userId: user.id,
+const heatmapHandler = async (req, res) => {
+  const { startDate, endDate, department, view = 'resource' } = req.query || {};
+
+  console.log('Fetching dashboard heatmap', {
     department,
     view,
     dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'current period'
@@ -180,7 +166,7 @@ const heatmapHandler = async (req, res, { user, validatedData }) => {
 
     return res.json(heatmapData);
   } catch (error) {
-    Logger.error('Failed to fetch dashboard heatmap', error, { userId: user.id });
+    console.error('Failed to fetch dashboard heatmap', error);
     
     // Return safe fallback data structure
     const fallbackHeatmap = {
@@ -200,9 +186,5 @@ const heatmapHandler = async (req, res, { user, validatedData }) => {
   }
 };
 
-// Export with middleware
-module.exports = withMiddleware(heatmapHandler, {
-  requireAuth: false, // Changed to false for demo mode
-  allowedMethods: ['GET'],
-  validateSchema: heatmapQuerySchema
-});
+// Export without middleware
+module.exports = heatmapHandler;
