@@ -1523,6 +1523,104 @@ const DatabaseService = {
 
       Logger.info('Report schedule deleted successfully', { scheduleId });
     });
+  },
+
+  async getChangeAllocationReport(startDate, endDate, projectIds, resourceIds = null, groupBy = 'project') {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Generating change allocation report', {
+        startDate,
+        endDate,
+        projectIds: projectIds.length,
+        resourceIds: resourceIds?.length || 0,
+        groupBy
+      });
+
+      // Build the query to get allocations with project and resource details
+      let query = supabaseAdmin
+        .from('resource_allocations')
+        .select(`
+          id,
+          resourceId,
+          projectId,
+          allocatedHours,
+          startDate,
+          endDate,
+          status,
+          resources!inner(id, name),
+          projects!inner(id, name)
+        `)
+        .in('projectId', projectIds)
+        .gte('startDate', startDate)
+        .lte('endDate', endDate)
+        .eq('status', 'active');
+
+      // Add resource filter if specified
+      if (resourceIds && resourceIds.length > 0) {
+        query = query.in('resourceId', resourceIds);
+      }
+
+      const { data: allocations, error: allocationsError } = await query;
+
+      if (allocationsError) {
+        Logger.error('Error fetching allocations for change report', allocationsError);
+        throw allocationsError;
+      }
+
+      // Get time entries for the same period to calculate actual hours
+      const { data: timeEntries, error: timeEntriesError } = await supabaseAdmin
+        .from('time_entries')
+        .select('*')
+        .gte('weekStartDate', startDate)
+        .lte('weekStartDate', endDate);
+
+      if (timeEntriesError) {
+        Logger.error('Error fetching time entries for change report', timeEntriesError);
+        throw timeEntriesError;
+      }
+
+      // Process the data to calculate estimated vs actual hours
+      const reportData = allocations.map(allocation => {
+        // Calculate estimated hours (from allocation)
+        const estimatedHours = parseFloat(allocation.allocatedHours) || 0;
+
+        // Calculate actual hours (from time entries)
+        const allocationTimeEntries = timeEntries.filter(te => te.allocationId === allocation.id);
+        const actualHours = allocationTimeEntries.reduce((sum, te) => {
+          return sum +
+            (parseFloat(te.mondayHours) || 0) +
+            (parseFloat(te.tuesdayHours) || 0) +
+            (parseFloat(te.wednesdayHours) || 0) +
+            (parseFloat(te.thursdayHours) || 0) +
+            (parseFloat(te.fridayHours) || 0) +
+            (parseFloat(te.saturdayHours) || 0) +
+            (parseFloat(te.sundayHours) || 0);
+        }, 0);
+
+        return {
+          allocationId: allocation.id,
+          resourceId: allocation.resourceId,
+          resourceName: allocation.resources.name,
+          projectId: allocation.projectId,
+          projectName: allocation.projects.name,
+          estimatedHours: estimatedHours,
+          actualHours: actualHours,
+          deviation: actualHours - estimatedHours,
+          deviationPercentage: estimatedHours > 0 ? ((actualHours - estimatedHours) / estimatedHours) * 100 : 0,
+          startDate: allocation.startDate,
+          endDate: allocation.endDate,
+          status: allocation.status
+        };
+      });
+
+      Logger.info('Change allocation report generated successfully', {
+        totalAllocations: reportData.length,
+        totalEstimated: reportData.reduce((sum, r) => sum + r.estimatedHours, 0),
+        totalActual: reportData.reduce((sum, r) => sum + r.actualHours, 0)
+      });
+
+      return reportData;
+    });
   }
 };
 

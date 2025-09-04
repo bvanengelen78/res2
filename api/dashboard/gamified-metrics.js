@@ -873,18 +873,29 @@ module.exports = async function handler(req, res) {
       },
       projectLeaderboard: [
         {
-          id: 1,
           name: 'RoutiGO Transport System',
-          score: 92,
-          trend: 'up',
-          utilizationRate: 88
+          variance: 8.5,
+          isAtRisk: false
         },
         {
-          id: 2,
           name: 'Digital Transformation',
-          score: 87,
-          trend: 'stable',
-          utilizationRate: 85
+          variance: 12.3,
+          isAtRisk: false
+        },
+        {
+          name: 'UX Redesign Project',
+          variance: 18.7,
+          isAtRisk: true
+        },
+        {
+          name: 'API Integration',
+          variance: 5.2,
+          isAtRisk: false
+        },
+        {
+          name: 'Mobile App Development',
+          variance: 22.1,
+          isAtRisk: true
         }
       ],
       firefighterAlerts: {
@@ -893,7 +904,7 @@ module.exports = async function handler(req, res) {
         trend: 'up'
       },
       continuousImprovement: {
-        delta: 5,
+        delta: 5.2,
         trend: 'up'
       },
       crystalBall: {
@@ -925,14 +936,20 @@ module.exports = async function handler(req, res) {
         score: 0,
         status: 'critical'
       },
-      projectLeaderboard: [],
+      projectLeaderboard: [
+        {
+          name: 'Fallback Project',
+          variance: 0,
+          isAtRisk: false
+        }
+      ],
       firefighterAlerts: {
         resolved: 0,
         delta: 0,
         trend: 'neutral'
       },
       continuousImprovement: {
-        delta: 0,
+        delta: 0.0,
         trend: 'neutral'
       },
       crystalBall: {
