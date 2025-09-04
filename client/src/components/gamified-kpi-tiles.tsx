@@ -474,12 +474,12 @@ const ProjectLeaderboard = ({ data, isInitialLoad, index }: ProjectLeaderboardPr
                   <div className="flex items-center space-x-2 flex-shrink-0">
                     <span className={cn(
                       "text-xs font-medium leading-tight",
-                      project.variance < 5 ? "text-green-600" :
-                      project.variance < 10 ? "text-yellow-600" : "text-red-600"
+                      (project.variance || 0) < 5 ? "text-green-600" :
+                      (project.variance || 0) < 10 ? "text-yellow-600" : "text-red-600"
                     )}>
-                      {project.variance.toFixed(1)}%
+                      {(project.variance || project.score || 0).toFixed(1)}%
                     </span>
-                    {project.isAtRisk && (
+                    {(project.isAtRisk || (project.variance && project.variance > 15)) && (
                       <Badge variant="destructive" className="text-xs px-1.5 py-0.5 leading-tight">
                         At Risk
                       </Badge>
@@ -590,7 +590,7 @@ const ContinuousImprovement = ({ data, isInitialLoad, index }: ContinuousImprove
             {/* Improvement Metric */}
             <div className="flex-1 flex flex-col justify-center items-center text-center">
               <div className={cn("text-2xl font-bold mb-2", trendColor)}>
-                {data.delta > 0 ? '+' : ''}{data.delta.toFixed(1)}%
+                {(data.delta || 0) > 0 ? '+' : ''}{(data.delta || 0).toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 mb-1">
                 {isImproving ? 'Improvement' : 'Regression'}
