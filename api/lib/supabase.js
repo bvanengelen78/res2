@@ -1273,6 +1273,228 @@ const DatabaseService = {
         timestamp: new Date().toISOString()
       };
     }
+  },
+
+  // Recent Reports management methods
+  async createRecentReport(reportData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating recent report', { name: reportData.name, type: reportData.type });
+
+      const { data, error } = await supabaseAdmin
+        .from('recent_reports')
+        .insert({
+          name: reportData.name,
+          type: reportData.type,
+          size: reportData.size,
+          criteria: reportData.criteria,
+          generated_by: reportData.userId,
+          generated_at: reportData.createdAt || new Date().toISOString(),
+          download_url: reportData.downloadUrl || null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Error creating recent report', error);
+        throw error;
+      }
+
+      Logger.info('Recent report created successfully', { reportId: data.id });
+      return data;
+    });
+  },
+
+  async deleteRecentReport(reportId, userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Deleting recent report', { reportId, userId });
+
+      const { error } = await supabaseAdmin
+        .from('recent_reports')
+        .delete()
+        .eq('id', reportId)
+        .eq('generated_by', userId);
+
+      if (error) {
+        Logger.error('Error deleting recent report', error);
+        throw error;
+      }
+
+      Logger.info('Recent report deleted successfully', { reportId });
+    });
+  },
+
+  async clearRecentReports(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Clearing all recent reports', { userId });
+
+      const { error } = await supabaseAdmin
+        .from('recent_reports')
+        .delete()
+        .eq('generated_by', userId);
+
+      if (error) {
+        Logger.error('Error clearing recent reports', error);
+        throw error;
+      }
+
+      Logger.info('All recent reports cleared successfully', { userId });
+    });
+  },
+
+  // Email delivery methods
+  async createEmailDelivery(emailData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating email delivery record', { reportName: emailData.reportName });
+
+      const { data, error } = await supabaseAdmin
+        .from('email_deliveries')
+        .insert({
+          recipients: emailData.recipientList,
+          subject: emailData.subject,
+          body: emailData.body,
+          report_name: emailData.reportName,
+          report_type: emailData.reportType,
+          include_attachment: emailData.includeAttachment,
+          send_copy: emailData.sendCopy,
+          status: emailData.status,
+          sent_at: emailData.sentAt,
+          sent_by: emailData.userId
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Error creating email delivery record', error);
+        throw error;
+      }
+
+      Logger.info('Email delivery record created successfully', { deliveryId: data.id });
+      return data;
+    });
+  },
+
+  async getEmailDeliveryHistory(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching email delivery history', { userId });
+
+      const { data, error } = await supabaseAdmin
+        .from('email_deliveries')
+        .select('*')
+        .eq('sent_by', userId)
+        .order('sent_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        Logger.error('Error fetching email delivery history', error);
+        throw error;
+      }
+
+      Logger.info('Email delivery history fetched successfully', { recordCount: data?.length || 0 });
+      return data || [];
+    });
+  },
+
+  // Report scheduling methods
+  async createReportSchedule(scheduleData) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Creating report schedule', { reportName: scheduleData.reportName });
+
+      const { data, error } = await supabaseAdmin
+        .from('report_schedules')
+        .insert({
+          report_type: scheduleData.reportType,
+          report_name: scheduleData.reportName,
+          frequency: scheduleData.frequency,
+          recipients: scheduleData.recipients,
+          criteria: scheduleData.criteria,
+          is_active: scheduleData.isActive,
+          next_run_date: scheduleData.nextRunDate,
+          created_by: scheduleData.userId,
+          created_at: scheduleData.createdAt,
+          last_run_date: scheduleData.lastRunDate,
+          run_count: scheduleData.runCount
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Error creating report schedule', error);
+        throw error;
+      }
+
+      Logger.info('Report schedule created successfully', { scheduleId: data.id });
+      return data;
+    });
+  },
+
+  async getReportSchedules(userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Fetching report schedules', { userId });
+
+      const { data, error } = await supabaseAdmin
+        .from('report_schedules')
+        .select('*')
+        .eq('created_by', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        Logger.error('Error fetching report schedules', error);
+        throw error;
+      }
+
+      Logger.info('Report schedules fetched successfully', { scheduleCount: data?.length || 0 });
+      return data || [];
+    });
+  },
+
+  async updateReportSchedule(scheduleId, updateData, userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Updating report schedule', { scheduleId, userId });
+
+      const { data, error } = await supabaseAdmin
+        .from('report_schedules')
+        .update(updateData)
+        .eq('id', scheduleId)
+        .eq('created_by', userId)
+        .select()
+        .single();
+
+      if (error) {
+        Logger.error('Error updating report schedule', error);
+        throw error;
+      }
+
+      Logger.info('Report schedule updated successfully', { scheduleId });
+      return data;
+    });
+  },
+
+  async deleteReportSchedule(scheduleId, userId) {
+    return withRetry(async () => {
+      checkSupabaseAvailable();
+      Logger.info('Deleting report schedule', { scheduleId, userId });
+
+      const { error } = await supabaseAdmin
+        .from('report_schedules')
+        .delete()
+        .eq('id', scheduleId)
+        .eq('created_by', userId);
+
+      if (error) {
+        Logger.error('Error deleting report schedule', error);
+        throw error;
+      }
+
+      Logger.info('Report schedule deleted successfully', { scheduleId });
+    });
   }
 };
 
